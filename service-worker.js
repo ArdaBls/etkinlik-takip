@@ -1,6 +1,6 @@
 // Bump this value whenever a deployed asset changes so returning users do not
 // get an older cached shell after a GitHub Pages update.
-const CACHE_NAME = "etkinlik-takip-v14";
+const CACHE_NAME = "etkinlik-takip-v15";
 const APP_ASSETS = [
   "./",
   "./index.html",
