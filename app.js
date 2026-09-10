@@ -612,14 +612,33 @@ function renderHomes() {
     return;
   }
   const canManageHomes = !firebaseState.enabled || isAdminUser();
-  list.innerHTML = homes.map((home) => {
+  const unnamedResponsible = "Sorumlu adı belirtilmedi";
+  const groups = new Map();
+  homes.forEach((home) => {
+    const responsible = String(homeResponsibles[home] || unnamedResponsible).trim().replace(/\s+/g, " ") || unnamedResponsible;
+    if (!groups.has(responsible)) groups.set(responsible, []);
+    groups.get(responsible).push(home);
+  });
+
+  const sortedGroups = [...groups.entries()].sort((a, b) => {
+    if (a[0] === unnamedResponsible) return 1;
+    if (b[0] === unnamedResponsible) return -1;
+    return a[0].localeCompare(b[0], "tr", { sensitivity: "base" });
+  });
+
+  const renderHomeCard = (home) => {
     const eventCount = records.filter((record) => record.home === home).length;
     const isSelected = selectedHomeDetail === home;
-    const responsibleLabel = homeResponsibles[home] ? `<span class="home-responsible">Sorumlu: ${escapeHTML(homeResponsibles[home])}</span>` : "";
     const adminActions = canManageHomes
       ? `<button class="row-action row-edit" type="button" data-rename-home="${escapeHTML(home)}">Adını değiştir</button><button class="row-action row-delete" type="button" data-delete-home="${escapeHTML(home)}">Sil</button>`
       : `<span class="home-role-note">Yönetici yönetir</span>`;
-    return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span>${responsibleLabel}</button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button>${adminActions}</div></div>`;
+    return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span></button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button>${adminActions}</div></div>`;
+  };
+
+  list.innerHTML = sortedGroups.map(([responsible, groupHomes], groupIndex) => {
+    const sortedHomes = groupHomes.sort((a, b) => a.localeCompare(b, "tr", { sensitivity: "base" }));
+    const headingId = `responsible-group-${groupIndex}`;
+    return `<section class="responsible-home-group" aria-labelledby="${headingId}"><div class="responsible-group-heading"><div><p class="section-kicker">Ev sorumlusu</p><h3 id="${headingId}">${escapeHTML(responsible)}</h3></div><span>${sortedHomes.length} çocuk evi</span></div><div class="responsible-home-grid">${sortedHomes.map(renderHomeCard).join("")}</div></section>`;
   }).join("");
 }
 
