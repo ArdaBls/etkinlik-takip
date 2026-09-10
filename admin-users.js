@@ -6,6 +6,7 @@
   let isAdmin = false;
   const userDirectory = new Map();
   const homeDirectory = new Map();
+  const userPhotoDirectory = new Map();
 
   const escapeHTML = (value = "") => String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
   const photoPattern = /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/;
@@ -44,8 +45,9 @@
       const assignedHomeIds = profile.assignedHomeIds && typeof profile.assignedHomeIds === "object" ? profile.assignedHomeIds : {};
       const selectedCount = [...homeDirectory.keys()].filter((homeId) => assignedHomeIds[homeId] === true).length;
       const displayName = profile.displayName || `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "Ad soyad belirtilmedi";
-      const avatar = photoPattern.test(String(profile.photoDataUrl || ""))
-        ? `<img src="${profile.photoDataUrl}" alt="${escapeHTML(displayName)}" />`
+      const profilePhoto = userPhotoDirectory.get(profile.key) || profile.photoDataUrl || "";
+      const avatar = photoPattern.test(String(profilePhoto))
+        ? `<img src="${profilePhoto}" alt="${escapeHTML(displayName)}" />`
         : `<span>${escapeHTML(initials(displayName))}</span>`;
       const assignmentMarkup = homeDirectory.size
         ? `<div class="user-home-assignment" data-assignment-container="${escapeHTML(profile.key)}"><span class="user-home-assignment-title">Sorumlu olduğu çocuk evleri</span><div class="assignment-combobox"><button class="assignment-combobox-trigger" type="button" data-combobox-toggle="${escapeHTML(profile.key)}" aria-expanded="false" aria-controls="assignment-menu-${escapeHTML(profile.key)}" role="combobox"><span data-assignment-summary="${escapeHTML(profile.key)}">${selectedCount ? `${selectedCount} çocuk evi seçildi` : "Çocuk evlerini seçin"}</span><span class="assignment-combobox-chevron" aria-hidden="true">⌄</span></button><div class="assignment-combobox-menu" id="assignment-menu-${escapeHTML(profile.key)}" data-assignment-menu="${escapeHTML(profile.key)}" role="listbox" hidden><label class="assignment-search"><span class="sr-only">Çocuk evi ara</span><input type="search" data-assignment-search="${escapeHTML(profile.key)}" placeholder="Çocuk evi ara…" autocomplete="off" /></label><div class="assignment-options" data-assignment-options="${escapeHTML(profile.key)}">${[...homeDirectory.values()].sort((first, second) => first.name.localeCompare(second.name, "tr")).map((home) => `<label class="assignment-option" data-assignment-option-label="${escapeHTML(home.id)}"><input type="checkbox" data-assignment-home="${escapeHTML(home.id)}" data-assignment-user="${escapeHTML(profile.key)}"${assignedHomeIds[home.id] === true ? " checked" : ""}><span>${escapeHTML(home.name)}</span></label>`).join("")}</div><div class="assignment-combobox-footer"><span data-assignment-empty="${escapeHTML(profile.key)}" hidden>Sonuç bulunamadı.</span><button class="assignment-clear" type="button" data-assignment-clear="${escapeHTML(profile.key)}">Seçimi temizle</button></div></div></div></div>`
@@ -219,6 +221,14 @@
         });
         renderUsers();
       }, (error) => console.warn("Çocuk evi listesi okunamadı:", error));
+      database.ref("userPhotos").on("value", (snapshot) => {
+        userPhotoDirectory.clear();
+        snapshot.forEach((child) => {
+          const photo = String(child.val() || "");
+          if (photoPattern.test(photo)) userPhotoDirectory.set(child.key, photo);
+        });
+        renderUsers();
+      }, (error) => console.warn("Kullanıcı fotoğrafları okunamadı:", error));
       database.ref("auditLogs").limitToLast(40).on("value", renderAuditLogs, (error) => console.warn("Değişiklik günlüğü okunamadı:", error));
     });
   };

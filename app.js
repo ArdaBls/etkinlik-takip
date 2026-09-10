@@ -184,6 +184,7 @@ let homeIds = getHomeIds();
 let homeProfiles = getHomeProfiles();
 let homeResponsibles = getHomeResponsibles();
 const responsibleProfiles = new Map();
+const userPhotoDirectory = new Map();
 let editingRecordId = null;
 let homeModalMode = null;
 let selectedHomeName = null;
@@ -499,13 +500,15 @@ async function saveCurrentUserPhoto(photoDataUrl = "") {
     showToast("Fotoğraf kaydetmek için giriş yapmalısınız.");
     return;
   }
-  const path = `users/${firebaseSafeKey(firebaseState.user.uid)}/photoDataUrl`;
+  const path = `userPhotos/${firebaseSafeKey(firebaseState.user.uid)}`;
   try {
     if (photoDataUrl) await firebaseState.database.ref(path).set(photoDataUrl);
     else await firebaseState.database.ref(path).remove();
     firebaseState.profile = { ...(firebaseState.profile || {}) };
     if (photoDataUrl) firebaseState.profile.photoDataUrl = photoDataUrl;
     else delete firebaseState.profile.photoDataUrl;
+    if (photoDataUrl) userPhotoDirectory.set(firebaseState.user.uid, photoDataUrl);
+    else userPhotoDirectory.delete(firebaseState.user.uid);
     responsibleProfiles.set(firebaseState.user.uid, { ...(responsibleProfiles.get(firebaseState.user.uid) || {}), ...firebaseState.profile, uid: firebaseState.user.uid });
     renderCurrentUserProfile();
     renderHomes();
@@ -538,7 +541,7 @@ function bindUserProfilesRealtime() {
     responsibleProfiles.clear();
     snapshot.forEach((child) => {
       const profile = child.val() || {};
-      if (profile.email) responsibleProfiles.set(child.key, { ...profile, uid: child.key });
+      if (profile.email) responsibleProfiles.set(child.key, { ...profile, photoDataUrl: userPhotoDirectory.get(child.key) || profile.photoDataUrl || "", uid: child.key });
     });
     if (firebaseState.user && firebaseState.profile) {
       responsibleProfiles.set(firebaseState.user.uid, { ...firebaseState.profile, uid: firebaseState.user.uid });
@@ -547,6 +550,19 @@ function bindUserProfilesRealtime() {
     renderHomes();
     renderHomeDetail();
   }, (error) => console.warn("Kullanıcı profilleri okunamadı:", error));
+  firebaseState.database.ref("userPhotos").on("value", (snapshot) => {
+    userPhotoDirectory.clear();
+    snapshot.forEach((child) => {
+      const photo = String(child.val() || "");
+      if (PHOTO_DATA_URL_PATTERN.test(photo)) userPhotoDirectory.set(child.key, photo);
+    });
+    responsibleProfiles.forEach((profile, uid) => {
+      if (userPhotoDirectory.has(uid)) profile.photoDataUrl = userPhotoDirectory.get(uid);
+    });
+    renderCurrentUserProfile();
+    renderHomes();
+    renderHomeDetail();
+  }, (error) => console.warn("Kullanıcı fotoğrafları okunamadı:", error));
 }
 
 function openProfileModal(trigger = null) {
