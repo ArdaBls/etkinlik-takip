@@ -232,7 +232,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .home-detail-table { min-width: 620px; }
 }
 
-.auth-gate { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--paper) 88%, var(--primary-pale)); backdrop-filter: blur(10px); }
+.auth-locked > :not(#auth-gate) { visibility: hidden !important; }
+.auth-gate { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: var(--paper); }
 .auth-card { width: min(420px, 100%); padding: 30px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 24px 65px rgba(17,37,35,.18); }
 .auth-brand { margin-bottom: 28px; }
 .auth-card h1 { margin: 0; color: var(--ink-strong); font-family: "DM Sans", sans-serif; font-size: 26px; letter-spacing: -.8px; }

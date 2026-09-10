@@ -303,6 +303,7 @@ function setAuthMode(mode) {
 }
 
 function showAuthGate(message = "Yalnızca yetkili ev sorumlusu giriş yapabilir.") {
+  document.body.classList.add("auth-locked");
   $("#auth-gate").hidden = false;
   $("#auth-error").textContent = message;
   $("#auth-logout").hidden = true;
@@ -311,6 +312,7 @@ function showAuthGate(message = "Yalnızca yetkili ev sorumlusu giriş yapabilir
 }
 
 function hideAuthGate() {
+  document.body.classList.remove("auth-locked");
   $("#auth-gate").hidden = true;
   $("#auth-error").textContent = "";
   $("#auth-logout").hidden = false;
