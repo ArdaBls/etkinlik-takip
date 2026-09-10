@@ -4,6 +4,8 @@ window.ETKINLIK_FIREBASE_CONFIG = {
   apiKey: "AIzaSyC-bboQwpwtVfF-ngV5-PPtURxiMi7BRVA",
   authDomain: "etkinlik-takip-dd7ab.firebaseapp.com",
   databaseURL: "https://etkinlik-takip-dd7ab-default-rtdb.europe-west1.firebasedatabase.app",
+  // Tek yönetici hesabının e-posta adresi. Yayına almadan önce gerçek adresle değiştirin.
+  adminEmail: "ADMIN_EMAIL_HERE",
   projectId: "etkinlik-takip-dd7ab",
   storageBucket: "etkinlik-takip-dd7ab.firebasestorage.app",
   messagingSenderId: "203106743767",

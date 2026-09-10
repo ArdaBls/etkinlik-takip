@@ -245,6 +245,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-card form .button { width: 100%; margin-top: 3px; }
 .auth-note { display: block; margin-top: 17px; color: var(--muted-light); font-size: 10px; line-height: 1.5; }
 .auth-logout { min-width: 53px; }
+.auth-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 0 18px; padding: 4px; background: var(--surface-warm); border: 1px solid var(--line); border-radius: 10px; }
+.auth-mode-button { min-height: 34px; padding: 0 10px; color: var(--muted); background: transparent; border: 0; border-radius: 7px; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.auth-mode-button.active { color: var(--ink-strong); background: var(--surface); box-shadow: 0 2px 8px rgba(17,37,35,.08); }
+.home-role-note { align-self: center; color: var(--muted-light); font-size: 10px; }
+[data-admin-only][hidden] { display: none !important; }
 
 @media (max-width: 620px) {
   .auth-card { padding: 23px 18px; }

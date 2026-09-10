@@ -30,9 +30,9 @@ Kurulan uygulama tarayıcı çubukları olmadan bağımsız pencere olarak açı
 
 ## Firebase bağlantısı ve kuralları
 
-Firebase Realtime Database bağlantısı `firebase-config.js` içinde tanımlıdır. Uygulama açıldığında Firebase Authentication üzerinden yalnızca yönetici e-postası ve parolasıyla giriş yapılır. Firebase Console'da **Authentication → Sign-in method → Email/Password** yöntemini açın ve tek yönetici hesabını oluşturun.
+Firebase Realtime Database bağlantısı `firebase-config.js` içinde tanımlıdır. Firebase Console'da **Authentication → Sign-in method → Email/Password** yöntemini açın. Giriş ekranındaki **Kayıt ol** sekmesi yeni hesapları varsayılan olarak `responsible` (ev sorumlusu) rolünde oluşturur ve e-posta doğrulaması ister. Tek yönetici hesabı `adminEmail` alanındaki e-posta ile eşleştirilir.
 
-Kuralları uygulamak için `firebase/database.rules.json` dosyasındaki `ADMIN_EMAIL_HERE` değerini yöneticinin doğrulanmış e-posta adresiyle değiştirip Firebase Console'daki Realtime Database **Rules** ekranına aktarın. Firebase CLI kullanıyorsanız kökteki `firebase.json` dosyası bu kural dosyasını gösterir.
+Kuralları uygulamak için hem `firebase/database.rules.json` içindeki hem de `firebase-config.js` içindeki `ADMIN_EMAIL_HERE` değerini yöneticinin doğrulanmış e-posta adresiyle değiştirip Firebase Console'daki Realtime Database **Rules** ekranına aktarın. Firebase CLI kullanıyorsanız kökteki `firebase.json` dosyası bu kural dosyasını gösterir.
 
 Realtime Database'de kişi bazlı çocuk verisi içeren bir koleksiyon oluşturulmayacaktır. Uygulamanın kullandığı yollar:
 
@@ -40,7 +40,9 @@ Realtime Database'de kişi bazlı çocuk verisi içeren bir koleksiyon oluşturu
 - `homes/{homeId}`: çocuk evi adı
 - `homeProfiles/{homeId}`: çocuk evi adı ve sıkıştırılmış base64 fotoğraf veri URL'si
 
-Firebase Authentication ile yalnızca tek ev sorumlusu giriş yapar. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
+Firebase Authentication ile tek admin ve birden fazla ev sorumlusu giriş yapabilir. Admin; çocuk evi, profil fotoğrafı ve kullanıcı rolü ayarlarını yönetir. Ev sorumluları etkinlik kayıtlarını kullanır; çocuk evi yönetim düğmeleri admin olmayan hesaplarda gizlenir. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
+
+Kayıt olan hesapların Firebase Authentication'da e-posta doğrulaması yapması gerekir. Kullanıcı rolleri `users/{uid}` altında tutulur; yeni kayıtlar yalnızca `responsible` rolüyle oluşturulabilir. Admin rolü Firebase Console üzerinden atanır veya `adminEmail` eşleşmesiyle tanınır.
 
 Firebase CLI ile yayımlamak için kök klasörde `firebase login` ve ardından `firebase deploy --only database` çalıştırılabilir. GitHub Pages iş akışı (`.github/workflows/pages.yml`) yalnızca statik siteyi yayımlar; Firebase kuralları ayrıca Firebase Console veya CLI üzerinden yayımlanmalıdır.
 

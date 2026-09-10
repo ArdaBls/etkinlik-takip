@@ -1,19 +1,32 @@
 {
   "rules": {
-    ".read": "auth != null && auth.token.email == 'ADMIN_EMAIL_HERE' && auth.token.email_verified == true",
+    ".read": "auth != null && auth.token.email_verified == true",
     ".write": "auth != null && auth.token.email == 'ADMIN_EMAIL_HERE' && auth.token.email_verified == true",
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.token.email_verified == true && (auth.uid == $uid || auth.token.email == 'ADMIN_EMAIL_HERE')",
+        ".write": "auth != null && ((auth.token.email == 'ADMIN_EMAIL_HERE' && auth.token.email_verified == true) || (auth.uid == $uid && !data.exists() && newData.child('role').val() == 'responsible' && newData.child('email').val() == auth.token.email))",
+        ".validate": "newData.hasChildren(['email', 'role']) && newData.child('email').isString() && (newData.child('role').val() == 'admin' || newData.child('role').val() == 'responsible')"
+      }
+    },
     "eventRecords": {
       "$recordId": {
+        ".read": "auth != null && auth.token.email_verified == true",
+        ".write": "auth != null && auth.token.email_verified == true",
         ".validate": "!newData.exists() || newData.hasChildren(['id', 'date', 'home', 'type', 'eventName'])"
       }
     },
     "homes": {
       "$homeId": {
+        ".read": "auth != null && auth.token.email_verified == true",
+        ".write": "auth != null && auth.token.email == 'ADMIN_EMAIL_HERE' && auth.token.email_verified == true",
         ".validate": "!newData.exists() || newData.hasChildren(['name'])"
       }
     },
     "homeProfiles": {
       "$homeId": {
+        ".read": "auth != null && auth.token.email_verified == true",
+        ".write": "auth != null && auth.token.email == 'ADMIN_EMAIL_HERE' && auth.token.email_verified == true",
         ".validate": "!newData.exists() || (newData.hasChildren(['homeName', 'photoDataUrl']) && newData.child('photoDataUrl').isString())"
       }
     }

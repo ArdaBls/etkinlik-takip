@@ -31,16 +31,21 @@
     <div class="auth-gate" id="auth-gate" hidden>
       <section class="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title" aria-describedby="auth-description">
         <div class="brand auth-brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 21c5-3.1 8-6.6 8-11V5.8L12 3 4 5.8V10c0 4.4 3 7.9 8 11Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg></span><span>Etkinlik <strong>Takip</strong></span></div>
-        <p class="section-kicker">Yönetici girişi</p>
+        <p class="section-kicker" id="auth-kicker">Yönetici ve ev sorumlusu girişi</p>
         <h1 id="auth-title">Etkinlik Takip</h1>
-        <p id="auth-description">Bu uygulamadaki kayıtlar yalnızca yetkili ev sorumlusu tarafından yönetilebilir.</p>
+        <p id="auth-description">Yönetici hesabı tüm ayarları yönetir. Diğer hesaplar ev sorumlusu olarak etkinlik kaydı oluşturur.</p>
+        <div class="auth-mode-switch" role="tablist" aria-label="Kimlik doğrulama işlemi">
+          <button class="auth-mode-button active" id="auth-login-mode" type="button" role="tab" aria-selected="true">Giriş yap</button>
+          <button class="auth-mode-button" id="auth-register-mode" type="button" role="tab" aria-selected="false">Kayıt ol</button>
+        </div>
         <form id="auth-form" novalidate>
           <label><span>E-posta</span><input id="auth-email" type="email" autocomplete="username" required /></label>
           <label><span>Parola</span><input id="auth-password" type="password" autocomplete="current-password" required /></label>
+          <label id="auth-password-confirm-field" hidden><span>Parola tekrarı</span><input id="auth-password-confirm" type="password" autocomplete="new-password" /></label>
           <p class="form-error" id="auth-error" role="alert"></p>
-          <button class="button button-primary" type="submit">Giriş yap</button>
+          <button class="button button-primary" id="auth-submit" type="submit">Giriş yap</button>
         </form>
-        <small class="auth-note">Yönetici hesabı Firebase Authentication üzerinden oluşturulur.</small>
+        <small class="auth-note" id="auth-note">Yönetici hesabı Firebase Authentication üzerinden oluşturulur. Yeni kayıt olan hesaplar ev sorumlusu rolüyle başlar.</small>
       </section>
     </div>
 
@@ -139,7 +144,7 @@
         <div class="section-heading-row">
           <div><h2>Çocuk evleri</h2><p>Etkinlik kaydı oluştururken kullanılacak çocuk evlerini yönetin.</p></div>
         </div>
-        <form class="home-add-form" id="home-add-form">
+          <form class="home-add-form" id="home-add-form" data-admin-only>
           <label class="search-field"><input id="new-home-name" type="text" maxlength="80" placeholder="Yeni çocuk evinin adı" aria-label="Yeni çocuk evinin adı" required /></label>
           <button class="button button-primary button-small" type="submit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>

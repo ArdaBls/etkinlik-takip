@@ -144,6 +144,10 @@ const firebaseState = {
   auth: null,
   database: null,
   user: null,
+  profile: null,
+  role: "responsible",
+  authMode: "login",
+  pendingRegistration: false,
   hydrating: false,
   syncTimer: null
 };
@@ -185,11 +189,12 @@ async function syncFirebaseState() {
   if (!firebaseState.enabled || !firebaseState.user || firebaseState.hydrating) return;
   try {
     const payload = firebaseStatePayload();
-    await Promise.all([
-      firebaseState.database.ref("homes").set(payload.homes),
-      firebaseState.database.ref("eventRecords").set(payload.eventRecords),
-      firebaseState.database.ref("homeProfiles").set(payload.homeProfiles)
-    ]);
+    const writes = [firebaseState.database.ref("eventRecords").set(payload.eventRecords)];
+    if (firebaseState.role === "admin") {
+      writes.push(firebaseState.database.ref("homes").set(payload.homes));
+      writes.push(firebaseState.database.ref("homeProfiles").set(payload.homeProfiles));
+    }
+    await Promise.all(writes);
   } catch (error) {
     console.warn("Firebase verisi senkronize edilemedi:", error);
     showToast("Firebase senkronizasyonu başarısız oldu. Yerel kayıt korunuyor.");
@@ -248,10 +253,53 @@ function authErrorText(error) {
   const messages = {
     "auth/invalid-credential": "E-posta veya parola hatalı.",
     "auth/invalid-email": "Geçerli bir e-posta adresi yazın.",
+    "auth/email-already-in-use": "Bu e-posta ile bir hesap zaten var. Giriş yapmayı deneyin.",
+    "auth/weak-password": "Parola en az 6 karakter olmalıdır.",
     "auth/user-disabled": "Bu yönetici hesabı devre dışı bırakılmış.",
-    "auth/too-many-requests": "Çok fazla başarısız deneme yapıldı. Bir süre sonra tekrar deneyin."
+    "auth/too-many-requests": "Çok fazla başarısız deneme yapıldı. Bir süre sonra tekrar deneyin.",
+    "auth/operation-not-allowed": "E-posta/parola ile kayıt Firebase Authentication'da henüz açılmamış.",
+    "auth/requires-recent-login": "Bu işlem için yeniden giriş yapmanız gerekiyor."
   };
   return messages[error?.code] || "Giriş yapılamadı. Firebase Authentication ayarlarını kontrol edin.";
+}
+
+function configuredAdminEmail() {
+  return String(window.ETKINLIK_FIREBASE_CONFIG?.adminEmail || "").trim().toLocaleLowerCase("tr-TR");
+}
+
+function isAdminUser(user = firebaseState.user) {
+  const email = String(user?.email || "").trim().toLocaleLowerCase("tr-TR");
+  return firebaseState.role === "admin" || (email && configuredAdminEmail() && email === configuredAdminEmail());
+}
+
+function applyRoleUI() {
+  const admin = isAdminUser();
+  $$('[data-admin-only]').forEach((element) => { element.hidden = !admin; });
+  $("#data-mode").textContent = firebaseState.enabled && firebaseState.user
+    ? `Firebase bağlı · ${admin ? "Yönetici" : "Ev sorumlusu"}`
+    : "Giriş bekleniyor";
+  renderHomes();
+  renderHomeDetail();
+}
+
+function setAuthMode(mode) {
+  firebaseState.authMode = mode;
+  const registering = mode === "register";
+  $("#auth-login-mode").classList.toggle("active", !registering);
+  $("#auth-register-mode").classList.toggle("active", registering);
+  $("#auth-login-mode").setAttribute("aria-selected", String(!registering));
+  $("#auth-register-mode").setAttribute("aria-selected", String(registering));
+  $("#auth-password-confirm-field").hidden = !registering;
+  $("#auth-password-confirm").required = registering;
+  $("#auth-submit").textContent = registering ? "Ev sorumlusu hesabı oluştur" : "Giriş yap";
+  $("#auth-kicker").textContent = registering ? "Ev sorumlusu kaydı" : "Yönetici ve ev sorumlusu girişi";
+  $("#auth-description").textContent = registering
+    ? "Kayıt olan hesaplar ev sorumlusu rolüyle başlar. Yönetici yetkisi yalnızca tanımlı tek hesaba aittir."
+    : "Yönetici hesabı tüm ayarları yönetir. Diğer hesaplar ev sorumlusu olarak etkinlik kaydı oluşturur.";
+  $("#auth-note").textContent = registering
+    ? "Kayıt sonrasında e-posta adresinize doğrulama bağlantısı gönderilir."
+    : "Yönetici hesabı Firebase Authentication üzerinden oluşturulur. Yeni kayıt olan hesaplar ev sorumlusu rolüyle başlar.";
+  $("#auth-error").textContent = "";
 }
 
 function showAuthGate(message = "Yalnızca yetkili ev sorumlusu giriş yapabilir.") {
@@ -266,7 +314,7 @@ function hideAuthGate() {
   $("#auth-gate").hidden = true;
   $("#auth-error").textContent = "";
   $("#auth-logout").hidden = false;
-  $("#data-mode").textContent = "Firebase bağlı";
+  applyRoleUI();
   document.body.style.overflow = "";
 }
 
@@ -276,21 +324,58 @@ async function handleAuthSubmit(event) {
   const button = form.querySelector("button[type=submit]");
   const email = $("#auth-email").value.trim();
   const password = $("#auth-password").value;
+  const passwordConfirm = $("#auth-password-confirm").value;
   $("#auth-error").textContent = "";
   if (!email || !password) {
     $("#auth-error").textContent = "E-posta ve parola zorunludur.";
     return;
   }
+  if (firebaseState.authMode === "register" && password !== passwordConfirm) {
+    $("#auth-error").textContent = "Parola tekrarı aynı olmalıdır.";
+    return;
+  }
   button.disabled = true;
-  button.textContent = "Giriş yapılıyor…";
+  button.textContent = firebaseState.authMode === "register" ? "Hesap oluşturuluyor…" : "Giriş yapılıyor…";
   try {
-    await firebaseState.auth.signInWithEmailAndPassword(email, password);
+    if (firebaseState.authMode === "register") {
+      firebaseState.pendingRegistration = true;
+      const credential = await firebaseState.auth.createUserWithEmailAndPassword(email, password);
+      await credential.user.sendEmailVerification();
+      await firebaseState.database.ref(`users/${firebaseSafeKey(credential.user.uid)}`).set({
+        email,
+        role: "responsible",
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+      });
+      await firebaseState.auth.signOut();
+      setAuthMode("login");
+      $("#auth-password").value = "";
+      $("#auth-password-confirm").value = "";
+      $("#auth-error").textContent = "Kayıt tamamlandı. E-posta adresinizi doğruladıktan sonra giriş yapabilirsiniz.";
+    } else {
+      await firebaseState.auth.signInWithEmailAndPassword(email, password);
+    }
   } catch (error) {
     $("#auth-error").textContent = authErrorText(error);
   } finally {
+    firebaseState.pendingRegistration = false;
     button.disabled = false;
-    button.textContent = "Giriş yap";
+    button.textContent = firebaseState.authMode === "register" ? "Ev sorumlusu hesabı oluştur" : "Giriş yap";
   }
+}
+
+async function loadFirebaseUserProfile(user) {
+  firebaseState.profile = null;
+  firebaseState.role = isAdminUser(user) ? "admin" : "responsible";
+  try {
+    const snapshot = await firebaseState.database.ref(`users/${firebaseSafeKey(user.uid)}`).once("value");
+    if (snapshot.exists()) {
+      firebaseState.profile = snapshot.val();
+      if (snapshot.val()?.role === "admin" || snapshot.val()?.role === "responsible") firebaseState.role = snapshot.val().role;
+    }
+  } catch (error) {
+    console.warn("Kullanıcı rolü okunamadı:", error);
+  }
+  applyRoleUI();
 }
 
 function initFirebase() {
@@ -304,14 +389,26 @@ function initFirebase() {
     firebaseState.auth = firebase.auth(firebaseApp);
     firebaseState.database = firebase.database(firebaseApp);
     firebaseState.enabled = true;
+    $("#auth-login-mode").addEventListener("click", () => setAuthMode("login"));
+    $("#auth-register-mode").addEventListener("click", () => setAuthMode("register"));
     $("#auth-form").addEventListener("submit", handleAuthSubmit);
     $("#auth-logout").addEventListener("click", () => firebaseState.auth.signOut());
     firebaseState.auth.onAuthStateChanged(async (user) => {
       firebaseState.user = user;
       if (!user) {
+        firebaseState.profile = null;
+        firebaseState.role = "responsible";
+        applyRoleUI();
         showAuthGate();
         return;
       }
+      if (!user.emailVerified && !firebaseState.pendingRegistration) {
+        await firebaseState.auth.signOut();
+        showAuthGate("Devam etmek için e-posta adresinizi doğrulayın.");
+        return;
+      }
+      if (firebaseState.pendingRegistration) return;
+      await loadFirebaseUserProfile(user);
       hideAuthGate();
       await hydrateFromFirebase();
     });
@@ -452,10 +549,14 @@ function renderHomes() {
     list.innerHTML = `<div class="empty-state"><strong>Henüz çocuk evi eklenmedi.</strong><p>Etkinlik kaydı oluşturmak için önce bir çocuk evi ekleyin.</p></div>`;
     return;
   }
+  const canManageHomes = !firebaseState.enabled || isAdminUser();
   list.innerHTML = homes.map((home) => {
     const eventCount = records.filter((record) => record.home === home).length;
     const isSelected = selectedHomeDetail === home;
-    return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span></button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button><button class="row-action row-edit" type="button" data-rename-home="${escapeHTML(home)}">Adını değiştir</button><button class="row-action row-delete" type="button" data-delete-home="${escapeHTML(home)}">Sil</button></div></div>`;
+    const adminActions = canManageHomes
+      ? `<button class="row-action row-edit" type="button" data-rename-home="${escapeHTML(home)}">Adını değiştir</button><button class="row-action row-delete" type="button" data-delete-home="${escapeHTML(home)}">Sil</button>`
+      : `<span class="home-role-note">Yönetici yönetir</span>`;
+    return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span></button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button>${adminActions}</div></div>`;
   }).join("");
 }
 
@@ -543,6 +644,7 @@ function renderHomeDetail() {
   const photo = $("#home-detail-photo");
   const placeholder = $("#home-detail-photo-placeholder");
   const photoButton = $("#home-photo-button");
+  photoButton.hidden = !(!firebaseState.enabled || isAdminUser());
   if (profile?.photoDataUrl) {
     photo.src = profile.photoDataUrl;
     photo.alt = `${selectedHomeDetail} ev sorumlusunun fotoğrafı`;
