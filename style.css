@@ -277,7 +277,9 @@ body.app-pending > *:not(.page-glow) { visibility: hidden; }
 .user-access-status { display: inline-flex; align-items: center; min-height: 24px; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
 .user-access-status.approved { color: #28764d; background: var(--mint-pale); }
 .user-access-status.pending { color: #946b27; background: var(--amber-pale); }
+.user-access-status.blocked { color: #a0443d; background: var(--coral-pale); }
 .user-access-actions .button { min-width: 82px; }
+.admin-pending-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 3px; padding-inline: 4px; color: #fff; background: var(--coral); border-radius: 999px; font-size: 9px; line-height: 1; }
 .form-success { color: #28764d; }
 body.dark-theme .form-success { color: var(--mint); }
 

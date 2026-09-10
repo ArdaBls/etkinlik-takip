@@ -9,6 +9,7 @@ const HOMES_STORAGE_KEY = "etkinlik-takip-homes-v2";
 // alanında base64 veri URL'si olarak saklanır; localStorage çevrimdışı önbellektir.
 const HOME_PROFILES_STORAGE_KEY = "etkinlik-takip-home-profiles-v1";
 const HOME_RESPONSIBLES_STORAGE_KEY = "etkinlik-takip-home-responsibles-v1";
+const HOME_IDS_STORAGE_KEY = "etkinlik-takip-home-ids-v1";
 const DEFAULT_HOMES = [];
 const LEGACY_DEMO_RECORD_IDS = new Set(["demo-1", "demo-2", "demo-3", "demo-4", "demo-5"]);
 const LEGACY_DEMO_HOMES = new Set(["Güneş Çocuk Evi", "Umut Çocuk Evi", "Papatya Çocuk Evi", "Yıldız Çocuk Evi"]);
@@ -76,6 +77,35 @@ function getHomes() {
     return Array.isArray(stored) ? normalizeHomes(stored) : [...DEFAULT_HOMES];
   } catch {
     return [...DEFAULT_HOMES];
+  }
+}
+
+function normalizeHomeIds(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.entries(value).reduce((ids, [home, id]) => {
+    const cleanHome = String(home || "").trim();
+    const cleanId = String(id || "").trim();
+    if (cleanHome && cleanId) ids[cleanHome] = cleanId;
+    return ids;
+  }, {});
+}
+
+function getHomeIds() {
+  try {
+    return normalizeHomeIds(JSON.parse(localStorage.getItem(HOME_IDS_STORAGE_KEY)));
+  } catch {
+    return {};
+  }
+}
+
+function saveHomeIds(ids) {
+  try {
+    localStorage.setItem(HOME_IDS_STORAGE_KEY, JSON.stringify(ids));
+    queueFirebaseSync();
+    return true;
+  } catch {
+    showToast("Çocuk evi kimlikleri cihazda saklanamadı.");
+    return false;
   }
 }
 
@@ -149,6 +179,7 @@ function saveHomeProfiles(profiles) {
 
 let records = getRecords();
 let homes = getHomes();
+let homeIds = getHomeIds();
 let homeProfiles = getHomeProfiles();
 let homeResponsibles = getHomeResponsibles();
 let editingRecordId = null;
@@ -172,7 +203,9 @@ const firebaseState = {
   hydrating: false,
   syncTimer: null,
   refreshTimer: null,
-  realtimeBound: false
+  realtimeBound: false,
+  pendingAudit: [],
+  lastCloudPayload: { homes: {}, eventRecords: {}, homeProfiles: {} }
 };
 
 const TYPE_COLORS = {
@@ -195,7 +228,8 @@ function firebaseSafeKey(value) {
 function firebaseStatePayload() {
   const cloudHomes = {};
   homes.forEach((home) => {
-    cloudHomes[firebaseSafeKey(home)] = { name: home, responsibleName: homeResponsibles[home] || "" };
+    if (!homeIds[home]) homeIds[home] = `home-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+    cloudHomes[homeIds[home]] = { name: home, responsibleName: homeResponsibles[home] || "" };
   });
   const cloudRecords = {};
   records.forEach((record) => {
@@ -203,35 +237,73 @@ function firebaseStatePayload() {
   });
   const cloudProfiles = {};
   Object.entries(homeProfiles).forEach(([home, profile]) => {
-    cloudProfiles[firebaseSafeKey(home)] = { homeName: home, photoDataUrl: profile.photoDataUrl };
+    if (!homeIds[home]) homeIds[home] = `home-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+    cloudProfiles[homeIds[home]] = { homeName: home, photoDataUrl: profile.photoDataUrl };
   });
   return { homes: cloudHomes, eventRecords: cloudRecords, homeProfiles: cloudProfiles };
 }
 
+function createAuditEntry(action, target, details = {}) {
+  return {
+    id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    action,
+    target: String(target || ""),
+    details,
+    email: String(firebaseState.user?.email || ""),
+    actorUid: String(firebaseState.user?.uid || ""),
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  };
+}
+
+function queueAudit(action, target, details = {}) {
+  if (!firebaseState.enabled || !firebaseState.user) return;
+  queueFirebaseSync(createAuditEntry(action, target, details));
+}
+
 async function syncFirebaseState() {
   if (!firebaseState.enabled || !firebaseState.user || firebaseState.hydrating) return;
+  const pendingAudit = firebaseState.pendingAudit.splice(0);
   try {
     const payload = firebaseStatePayload();
-    const writes = [firebaseState.database.ref("eventRecords").set(payload.eventRecords)];
+    const updates = {};
+    const addCollectionUpdates = (path, current, previous) => {
+      Object.keys(previous || {}).filter((key) => !(key in current)).forEach((key) => { updates[`${path}/${key}`] = null; });
+      Object.entries(current).forEach(([key, value]) => { updates[`${path}/${key}`] = value; });
+    };
+    addCollectionUpdates("eventRecords", payload.eventRecords, firebaseState.lastCloudPayload.eventRecords);
     if (firebaseState.role === "admin") {
-      writes.push(firebaseState.database.ref("homes").set(payload.homes));
-      writes.push(firebaseState.database.ref("homeProfiles").set(payload.homeProfiles));
+      addCollectionUpdates("homes", payload.homes, firebaseState.lastCloudPayload.homes);
+      addCollectionUpdates("homeProfiles", payload.homeProfiles, firebaseState.lastCloudPayload.homeProfiles);
     }
-    await Promise.all(writes);
+    pendingAudit.forEach((entry) => { updates[`auditLogs/${firebaseSafeKey(entry.id)}`] = entry; });
+    if (Object.keys(updates).length) await firebaseState.database.ref().update(updates);
+    firebaseState.lastCloudPayload = payload;
   } catch (error) {
+    firebaseState.pendingAudit.unshift(...pendingAudit);
     console.warn("Firebase verisi senkronize edilemedi:", error);
     showToast("Firebase senkronizasyonu başarısız oldu. Yerel kayıt korunuyor.");
   }
 }
 
-function queueFirebaseSync() {
+function queueFirebaseSync(auditEntry = null) {
+  if (auditEntry) firebaseState.pendingAudit.push(auditEntry);
   if (!firebaseState.enabled || !firebaseState.user || firebaseState.hydrating) return;
   clearTimeout(firebaseState.syncTimer);
-  firebaseState.syncTimer = setTimeout(() => syncFirebaseState(), 350);
+  firebaseState.syncTimer = setTimeout(() => syncFirebaseState(), 120);
+}
+
+function cloudHomesToData(value) {
+  const ids = {};
+  const names = Object.entries(value || {}).map(([id, item]) => {
+    const name = typeof item === "string" ? item : item?.name;
+    if (name) ids[String(name).trim()] = id;
+    return name;
+  });
+  return { homes: normalizeHomes(names), ids };
 }
 
 function cloudHomesToList(value) {
-  return normalizeHomes(Object.values(value || {}).map((item) => typeof item === "string" ? item : item?.name));
+  return cloudHomesToData(value).homes;
 }
 
 function cloudResponsiblesToMap(value) {
@@ -256,6 +328,7 @@ async function hydrateFromFirebase() {
   if (!firebaseState.enabled || !firebaseState.user) return;
   clearTimeout(firebaseState.syncTimer);
   clearTimeout(firebaseState.refreshTimer);
+  firebaseState.pendingAudit = [];
   firebaseState.hydrating = true;
   try {
     const [homesSnapshot, recordsSnapshot, profilesSnapshot] = await Promise.all([
@@ -263,20 +336,28 @@ async function hydrateFromFirebase() {
       firebaseState.database.ref("eventRecords").once("value"),
       firebaseState.database.ref("homeProfiles").once("value")
     ]);
-    const cloudHomes = homesSnapshot.exists() ? cloudHomesToList(homesSnapshot.val()) : [];
+    const cloudHomeData = homesSnapshot.exists() ? cloudHomesToData(homesSnapshot.val()) : { homes: [], ids: {} };
+    const cloudHomes = cloudHomeData.homes;
     const cloudResponsibles = homesSnapshot.exists() ? cloudResponsiblesToMap(homesSnapshot.val()) : {};
     const cloudRecords = recordsSnapshot.exists() ? normalizeRecords(Object.values(recordsSnapshot.val() || {})) : [];
     const cloudProfiles = profilesSnapshot.exists() ? cloudProfilesToMap(profilesSnapshot.val()) : {};
+    firebaseState.lastCloudPayload = {
+      homes: homesSnapshot.exists() ? homesSnapshot.val() || {} : {},
+      eventRecords: recordsSnapshot.exists() ? recordsSnapshot.val() || {} : {},
+      homeProfiles: profilesSnapshot.exists() ? profilesSnapshot.val() || {} : {}
+    };
     const hasLegacyDemoHomes = cloudHomes.length > 0 && cloudHomes.every((home) => LEGACY_DEMO_HOMES.has(home));
     const shouldClearLegacyDemo = hasLegacyDemoHomes && cloudRecords.length === 0;
     // Once Firebase auth is active, the cloud is the source of truth. In particular,
     // a missing node means the data was intentionally deleted and must not be
     // repopulated from an older localStorage snapshot on the next refresh.
     homes = shouldClearLegacyDemo ? [] : cloudHomes;
+    homeIds = shouldClearLegacyDemo ? {} : cloudHomeData.ids;
     homeResponsibles = shouldClearLegacyDemo ? {} : cloudResponsibles;
     records = shouldClearLegacyDemo ? [] : cloudRecords;
     homeProfiles = shouldClearLegacyDemo ? {} : cloudProfiles;
     saveHomes(homes);
+    saveHomeIds(homeIds);
     saveHomeResponsibles(homeResponsibles);
     saveRecords(records);
     saveHomeProfiles(homeProfiles);
@@ -304,9 +385,10 @@ function bindFirebaseRealtime() {
     firebaseState.database.ref("users").on("value", () => hydrateAdminUsers(), (error) => console.warn("Kullanıcı izinleri canlı dinleyicisi başarısız:", error));
   } else if (firebaseState.user) {
     firebaseState.database.ref(`users/${firebaseSafeKey(firebaseState.user.uid)}`).on("value", async (snapshot) => {
-      if (!firebaseState.user || snapshot.val()?.approved === true) return;
+      const profile = snapshot.val() || {};
+      if (!firebaseState.user || (profile.approved === true && profile.blocked !== true)) return;
       await firebaseState.auth.signOut();
-      redirectToLogin("pending");
+      redirectToLogin(profile.blocked === true ? "blocked" : "pending");
     }, (error) => console.warn("Kullanıcı izin durumu dinlenemedi:", error));
   }
 }
@@ -329,6 +411,7 @@ async function hydrateAdminUsers() {
         email: String(profile.email),
         role: String(profile.role || "responsible"),
         approved: profile.approved === true,
+        blocked: profile.blocked === true,
         createdAt: Number(profile.createdAt || 0)
       });
     });
@@ -417,9 +500,9 @@ function initFirebase() {
         return;
       }
       await loadFirebaseUserProfile(user);
-      if (!isAdminUser(user) && firebaseState.profile?.approved !== true) {
+      if (!isAdminUser(user) && (firebaseState.profile?.approved !== true || firebaseState.profile?.blocked === true)) {
         await firebaseState.auth.signOut();
-        redirectToLogin("pending");
+        redirectToLogin(firebaseState.profile?.blocked === true ? "blocked" : "pending");
         return;
       }
       document.body.classList.remove("app-pending");
@@ -582,9 +665,16 @@ function renderAdminUsers() {
   if (!section || !list) return;
   const admin = isAdminUser();
   section.hidden = !admin;
+  const pendingBadge = $("#pending-user-count");
   if (!admin) {
     list.innerHTML = "";
+    if (pendingBadge) pendingBadge.hidden = true;
     return;
+  }
+  const pendingCount = firebaseState.userDirectory.filter((profile) => !profile.approved && !profile.blocked).length;
+  if (pendingBadge) {
+    pendingBadge.textContent = String(pendingCount);
+    pendingBadge.hidden = pendingCount === 0;
   }
   if (!firebaseState.userDirectory.length) {
     list.innerHTML = `<div class="empty-state"><strong>Henüz kayıt olan ev sorumlusu yok.</strong><p>Yeni kullanıcı kayıt olduğunda burada izin verebilirsiniz.</p></div>`;
@@ -592,10 +682,12 @@ function renderAdminUsers() {
   }
   list.innerHTML = firebaseState.userDirectory.map((profile) => {
     const created = profile.createdAt ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(profile.createdAt)) : "Tarih belirtilmedi";
-    const status = profile.approved ? "İzin verildi" : "Onay bekliyor";
+    const status = profile.blocked ? "Engellendi" : profile.approved ? "İzin verildi" : "Onay bekliyor";
     const actionLabel = profile.approved ? "İzni geri al" : "Görüntüleme izni ver";
     const actionClass = profile.approved ? "button-ghost" : "button-primary";
-    return `<article class="user-access-row"><div class="user-access-copy"><strong>${escapeHTML(profile.email)}</strong><span>Kayıt tarihi: ${escapeHTML(created)}</span></div><div class="user-access-actions"><span class="user-access-status ${profile.approved ? "approved" : "pending"}">${status}</span><button class="button button-small ${actionClass}" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-approved="${String(profile.approved)}">${actionLabel}</button></div></article>`;
+    const statusClass = profile.blocked ? "blocked" : profile.approved ? "approved" : "pending";
+    const blockLabel = profile.blocked ? "Engeli kaldır" : "Hesabı engelle";
+    return `<article class="user-access-row"><div class="user-access-copy"><strong>${escapeHTML(profile.email)}</strong><span>Kayıt tarihi: ${escapeHTML(created)}</span></div><div class="user-access-actions"><span class="user-access-status ${statusClass}">${status}</span><button class="button button-small ${actionClass}" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-approved="${String(profile.approved)}">${actionLabel}</button><button class="button button-small button-ghost" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-blocked="${String(profile.blocked)}">${blockLabel}</button></div></article>`;
   }).join("");
 }
 
@@ -604,7 +696,11 @@ async function setUserApproval(userKey, approved) {
   const profile = firebaseState.userDirectory.find((item) => item.key === userKey);
   if (!profile) return;
   try {
-    await firebaseState.database.ref(`users/${userKey}`).update({ approved });
+    const audit = createAuditEntry(approved ? "user.approve" : "user.revoke", userKey, { email: profile.email });
+    await firebaseState.database.ref().update({
+      [`users/${userKey}/approved`]: approved,
+      [`auditLogs/${firebaseSafeKey(audit.id)}`]: audit
+    });
     profile.approved = approved;
     firebaseState.userDirectory.sort((first, second) => Number(first.approved) - Number(second.approved) || first.email.localeCompare(second.email, "tr"));
     renderAdminUsers();
@@ -612,6 +708,25 @@ async function setUserApproval(userKey, approved) {
   } catch (error) {
     console.warn("Kullanıcı izni güncellenemedi:", error);
     showToast("Kullanıcı izni güncellenemedi.");
+  }
+}
+
+async function setUserBlocked(userKey, blocked) {
+  if (!firebaseState.enabled || !firebaseState.database || !isAdminUser() || !userKey) return;
+  const profile = firebaseState.userDirectory.find((item) => item.key === userKey);
+  if (!profile) return;
+  try {
+    const audit = createAuditEntry(blocked ? "user.block" : "user.unblock", userKey, { email: profile.email });
+    await firebaseState.database.ref().update({
+      [`users/${userKey}/blocked`]: blocked,
+      [`auditLogs/${firebaseSafeKey(audit.id)}`]: audit
+    });
+    profile.blocked = blocked;
+    renderAdminUsers();
+    showToast(blocked ? "Kullanıcı hesabı engellendi." : "Kullanıcı hesabının engeli kaldırıldı.");
+  } catch (error) {
+    console.warn("Kullanıcı engel durumu güncellenemedi:", error);
+    showToast("Kullanıcı engel durumu güncellenemedi.");
   }
 }
 
@@ -795,6 +910,7 @@ function handleHomePhotoChange(event) {
       homeProfiles = previousProfiles;
       return;
     }
+    queueAudit("home.photo.update", homeIds[targetHome], { home: targetHome });
     renderHomeDetail();
     showToast("Ev sorumlusunun fotoğrafı güncellendi.");
   }).catch((error) => {
@@ -914,10 +1030,12 @@ function handleEventForm(event) {
     records.unshift({ id: `local-${Date.now()}`, ...recordData });
   }
   const wasEditing = Boolean(editingRecordId);
+  const savedRecordId = editingRecordId || records[0]?.id;
   if (!saveRecords(records)) {
     records = previousRecords;
     return;
   }
+  queueAudit(wasEditing ? "event.update" : "event.create", savedRecordId, { home: recordData.home, type: recordData.type });
   form.reset();
   form.elements.date.value = todayISO();
   closeModal();
@@ -943,6 +1061,7 @@ function deleteRecord(id) {
     records = previousRecords;
     return;
   }
+  queueAudit("event.delete", id, { home: record.home, type: record.type });
   updateEverything();
   showToast("Kayıt silindi.");
 }
@@ -960,17 +1079,22 @@ function addHome(name, responsibleName) {
     return false;
   }
   const previousHomes = [...homes];
+  const previousHomeIds = { ...homeIds };
   const previousResponsibles = { ...homeResponsibles };
   homes.push(cleanName);
+  homeIds = { ...homeIds, [cleanName]: `home-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}` };
   homeResponsibles = { ...homeResponsibles, [cleanName]: cleanResponsibleName };
   homes.sort((a, b) => a.localeCompare(b, "tr"));
-  if (!saveHomes(homes) || !saveHomeResponsibles(homeResponsibles)) {
+  if (!saveHomes(homes) || !saveHomeIds(homeIds) || !saveHomeResponsibles(homeResponsibles)) {
     homes = previousHomes;
+    homeIds = previousHomeIds;
     homeResponsibles = previousResponsibles;
     saveHomes(previousHomes);
+    saveHomeIds(previousHomeIds);
     saveHomeResponsibles(previousResponsibles);
     return false;
   }
+  queueAudit("home.create", homeIds[cleanName], { home: cleanName });
   updateEverything();
   showToast("Çocuk evi eklendi.");
   return true;
@@ -1012,23 +1136,29 @@ function handleHomeModal(event) {
   const eventCount = records.filter((record) => record.home === oldName).length;
   if (homeModalMode === "delete") {
     const previousHomes = homes;
+    const previousHomeIds = homeIds;
     const previousProfiles = homeProfiles;
     const previousResponsibles = homeResponsibles;
     homes = homes.filter((home) => home !== oldName);
+    homeIds = { ...homeIds };
     homeProfiles = { ...homeProfiles };
     homeResponsibles = { ...homeResponsibles };
+    delete homeIds[oldName];
     delete homeProfiles[oldName];
     delete homeResponsibles[oldName];
-    if (!saveHomes(homes) || !saveHomeProfiles(homeProfiles) || !saveHomeResponsibles(homeResponsibles)) {
+    if (!saveHomes(homes) || !saveHomeIds(homeIds) || !saveHomeProfiles(homeProfiles) || !saveHomeResponsibles(homeResponsibles)) {
       homes = previousHomes;
+      homeIds = previousHomeIds;
       homeProfiles = previousProfiles;
       homeResponsibles = previousResponsibles;
       saveHomes(previousHomes);
+      saveHomeIds(previousHomeIds);
       saveHomeProfiles(previousProfiles);
       saveHomeResponsibles(previousResponsibles);
       return;
     }
     if (selectedHomeDetail === oldName) selectedHomeDetail = null;
+    queueAudit("home.delete", previousHomeIds[oldName] || oldName, { home: oldName });
     closeModal();
     updateEverything();
     showToast(eventCount ? "Çocuk evi silindi; geçmiş kayıtlar korundu." : "Çocuk evi silindi.");
@@ -1051,10 +1181,13 @@ function handleHomeModal(event) {
     return;
   }
   const previousHomes = homes;
+  const previousHomeIds = homeIds;
   const previousRecords = records;
   const previousProfiles = homeProfiles;
   const previousResponsibles = homeResponsibles;
   homes = homes.map((home) => home === oldName ? newName : home).sort((a, b) => a.localeCompare(b, "tr"));
+  homeIds = { ...homeIds, [newName]: homeIds[oldName] || `home-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`}` };
+  delete homeIds[oldName];
   records = records.map((record) => record.home === oldName ? { ...record, home: newName } : record);
   homeProfiles = { ...homeProfiles };
   homeResponsibles = { ...homeResponsibles };
@@ -1064,18 +1197,21 @@ function handleHomeModal(event) {
   }
   if (homeResponsibles[oldName]) delete homeResponsibles[oldName];
   homeResponsibles[newName] = newResponsibleName;
-  if (!saveHomes(homes) || !saveRecords(records) || !saveHomeProfiles(homeProfiles) || !saveHomeResponsibles(homeResponsibles)) {
+  if (!saveHomes(homes) || !saveHomeIds(homeIds) || !saveRecords(records) || !saveHomeProfiles(homeProfiles) || !saveHomeResponsibles(homeResponsibles)) {
     homes = previousHomes;
+    homeIds = previousHomeIds;
     records = previousRecords;
     homeProfiles = previousProfiles;
     homeResponsibles = previousResponsibles;
     saveHomes(previousHomes);
+    saveHomeIds(previousHomeIds);
     saveRecords(previousRecords);
     saveHomeProfiles(previousProfiles);
     saveHomeResponsibles(previousResponsibles);
     return;
   }
   if (selectedHomeDetail === oldName) selectedHomeDetail = newName;
+  queueAudit("home.rename", homeIds[newName] || newName, { from: oldName, to: newName });
   closeModal();
   updateEverything();
   showToast("Çocuk evinin adı ve bağlı kayıtları güncellendi.");
@@ -1308,6 +1444,10 @@ function init() {
   $("#users-list").addEventListener("click", (event) => {
     const button = event.target.closest("[data-user-key]");
     if (!button) return;
+    if (button.dataset.userBlocked !== undefined) {
+      setUserBlocked(button.dataset.userKey, button.dataset.userBlocked !== "true");
+      return;
+    }
     setUserApproval(button.dataset.userKey, button.dataset.userApproved !== "true");
   });
   $("#home-modal-form").addEventListener("submit", handleHomeModal);

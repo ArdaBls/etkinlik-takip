@@ -86,6 +86,7 @@
     const reason = new URLSearchParams(location.search).get("reason");
     if (reason === "verify") setMessage("Devam etmek için e-posta adresinizi doğrulayın.");
     if (reason === "pending") setMessage("Hesabınız yönetici onayı bekliyor. İzin verildiğinde tekrar giriş yapabilirsiniz.");
+    if (reason === "blocked") setMessage("Bu hesabın erişimi yönetici tarafından engellendi.");
 
     $("#auth-login-mode").addEventListener("click", () => setAuthMode("login"));
     $("#auth-register-mode").addEventListener("click", () => setAuthMode("register"));
