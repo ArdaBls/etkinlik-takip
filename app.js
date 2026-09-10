@@ -402,6 +402,8 @@ function isAdminUser(user = firebaseState.user) {
 function applyRoleUI() {
   const admin = isAdminUser();
   $$('[data-admin-only]').forEach((element) => { element.hidden = !admin; });
+  const logoutButton = $("#auth-logout");
+  if (logoutButton) logoutButton.hidden = !firebaseState.user;
   $("#data-mode").textContent = firebaseState.enabled && firebaseState.user
     ? `Firebase bağlı · ${admin ? "Yönetici" : "Ev sorumlusu"}`
     : "Giriş bekleniyor";
@@ -1385,20 +1387,11 @@ function initHomesPage() {
     $("#export-home-excel")?.addEventListener("click", exportHomeExcel);
   }
 
-  const mobileNavToggle = $("#mobile-nav-toggle");
   const mainNav = $("#main-nav");
-  mobileNavToggle.addEventListener("click", () => {
-    const isOpen = mainNav.classList.toggle("mobile-open");
-    mobileNavToggle.setAttribute("aria-expanded", String(isOpen));
-    mobileNavToggle.setAttribute("aria-label", isOpen ? "Menüyü kapat" : "Menüyü aç");
-  });
   mainNav.addEventListener("click", (event) => {
     const link = event.target.closest("a");
     if (!link) return;
     $$(".main-nav a").forEach((item) => item.classList.toggle("active", item === link));
-    mainNav.classList.remove("mobile-open");
-    mobileNavToggle.setAttribute("aria-expanded", "false");
-    mobileNavToggle.setAttribute("aria-label", "Menüyü aç");
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && (!$("#record-modal").hidden || !$("#home-modal").hidden)) closeModal();
@@ -1472,20 +1465,11 @@ function init() {
   $("#home-photo-button").addEventListener("click", () => $("#home-photo-input").click());
   $("#home-photo-input").addEventListener("change", handleHomePhotoChange);
   $("#export-home-excel").addEventListener("click", exportHomeExcel);
-  const mobileNavToggle = $("#mobile-nav-toggle");
   const mainNav = $("#main-nav");
-  mobileNavToggle.addEventListener("click", () => {
-    const isOpen = mainNav.classList.toggle("mobile-open");
-    mobileNavToggle.setAttribute("aria-expanded", String(isOpen));
-    mobileNavToggle.setAttribute("aria-label", isOpen ? "Menüyü kapat" : "Menüyü aç");
-  });
   mainNav.addEventListener("click", (event) => {
     const link = event.target.closest("a");
     if (!link) return;
     $$(".main-nav a").forEach((item) => item.classList.toggle("active", item === link));
-    mainNav.classList.remove("mobile-open");
-    mobileNavToggle.setAttribute("aria-expanded", "false");
-    mobileNavToggle.setAttribute("aria-label", "Menüyü aç");
   });
   const navLinks = $$(".main-nav a");
   const observedSections = navLinks.map((link) => {

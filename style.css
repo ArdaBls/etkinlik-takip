@@ -217,6 +217,21 @@ body.dark-theme .button-primary { color: #173b35; }
   .responsible-home-grid { grid-template-columns: 1fr; }
 }
 
+/* Menü bağlantıları küçük ekranlarda da görünür; hamburger menü kullanılmaz. */
+@media (max-width: 980px) {
+  .mobile-nav-toggle { display: none !important; }
+  .site-header .main-nav { display: flex; align-self: center; align-items: center; gap: 14px; margin-left: auto; overflow-x: auto; }
+  .site-header .main-nav a { flex: 0 0 auto; font-size: 12px; white-space: nowrap; }
+}
+
+@media (max-width: 620px) {
+  .site-header { height: auto; min-height: 67px; flex-wrap: wrap; padding-block: 6px; }
+  .site-header .main-nav { flex: 0 0 100%; order: 3; justify-content: center; height: 34px; margin-left: 0; border-top: 1px solid var(--line); }
+  .site-header .main-nav a { height: 34px; font-size: 11px; }
+  .auth-logout { width: auto; min-height: 36px; padding: 0 10px; font-size: 11px; }
+  .auth-logout::before { content: none; }
+}
+
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 68%, white); outline-offset: 2px; }
 
 /* Çocuk evi detay ekranı */
