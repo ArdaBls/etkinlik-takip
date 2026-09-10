@@ -105,7 +105,10 @@
       if (menu.dataset.assignmentMenu !== exceptKey) {
         menu.hidden = true;
         const trigger = document.querySelector(`[data-combobox-toggle="${menu.dataset.assignmentMenu}"]`);
-        if (trigger) trigger.setAttribute("aria-expanded", "false");
+        if (trigger) {
+          trigger.setAttribute("aria-expanded", "false");
+          trigger.closest(".user-access-row")?.classList.remove("assignment-open");
+        }
       }
     });
   };
@@ -148,6 +151,7 @@
         closeAssignmentMenus(willOpen ? key : "");
         menu.hidden = !willOpen;
         toggle.setAttribute("aria-expanded", String(willOpen));
+        toggle.closest(".user-access-row")?.classList.toggle("assignment-open", willOpen);
         if (willOpen) menu.querySelector("[data-assignment-search]")?.focus();
         return;
       }
