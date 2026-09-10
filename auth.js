@@ -61,7 +61,7 @@
       ? "Kayıt olan hesaplar ev sorumlusu rolüyle başlar. Yönetici yetkisi yalnızca tanımlı tek hesaba aittir."
       : "Yönetici hesabı tüm ayarları yönetir. Diğer hesaplar ev sorumlusu olarak etkinlik kaydı oluşturur.";
     $("#auth-note").textContent = registering
-      ? "Kayıt sonrasında e-posta adresinize doğrulama bağlantısı gönderilir."
+      ? "Kayıt sonrasında yöneticinin izin vermesi beklenir; e-posta gönderilmez."
       : "Yönetici hesabı Firebase Authentication üzerinden oluşturulur. Yeni kayıt olan hesaplar ev sorumlusu rolüyle başlar.";
     if (!$("#auth-error").classList.contains("form-success")) setMessage("");
   };
