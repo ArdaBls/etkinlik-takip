@@ -3,12 +3,15 @@
  * Çocuklara ait kişi veya kimlik bilgisi bu uygulamada tutulmaz.
  */
 
-const RECORDS_STORAGE_KEY = "etkinlik-takip-records-v2";
-const HOMES_STORAGE_KEY = "etkinlik-takip-homes-v1";
+const RECORDS_STORAGE_KEY = "etkinlik-takip-records-v3";
+const HOMES_STORAGE_KEY = "etkinlik-takip-homes-v2";
 // Ev sorumlusu fotoğrafı homeProfiles/{homeId} içindeki photoDataUrl
 // alanında base64 veri URL'si olarak saklanır; localStorage çevrimdışı önbellektir.
 const HOME_PROFILES_STORAGE_KEY = "etkinlik-takip-home-profiles-v1";
-const DEFAULT_HOMES = ["Güneş Çocuk Evi", "Umut Çocuk Evi", "Papatya Çocuk Evi", "Yıldız Çocuk Evi"];
+const HOME_RESPONSIBLES_STORAGE_KEY = "etkinlik-takip-home-responsibles-v1";
+const DEFAULT_HOMES = [];
+const LEGACY_DEMO_RECORD_IDS = new Set(["demo-1", "demo-2", "demo-3", "demo-4", "demo-5"]);
+const LEGACY_DEMO_HOMES = new Set(["Güneş Çocuk Evi", "Umut Çocuk Evi", "Papatya Çocuk Evi", "Yıldız Çocuk Evi"]);
 const PHOTO_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/;
 const MAX_PHOTO_DATA_URL_LENGTH = 700_000;
 
@@ -23,25 +26,8 @@ const formatDate = (value) => {
   return Number.isNaN(date.getTime()) ? "Geçersiz tarih" : new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" }).format(date);
 };
 
-function getSampleRecords() {
-  const now = new Date();
-  const dateAt = (offset) => {
-    const copy = new Date(now);
-    copy.setDate(copy.getDate() + offset);
-    return localISO(copy);
-  };
-
-  return [
-    { id: "demo-1", date: dateAt(0), home: "Güneş Çocuk Evi", type: "Spor", eventName: "Basketbol antrenmanı", location: "İl Spor Salonu", startTime: "14:00", endTime: "15:30", notes: "" },
-    { id: "demo-2", date: dateAt(-1), home: "Umut Çocuk Evi", type: "Kültür & Sanat", eventName: "Seramik atölyesi", location: "Gençlik Merkezi", startTime: "13:30", endTime: "15:00", notes: "" },
-    { id: "demo-3", date: dateAt(-3), home: "Papatya Çocuk Evi", type: "Gezi", eventName: "Doğa yürüyüşü", location: "Kent Ormanı", startTime: "10:00", endTime: "12:00", notes: "Hava koşulları uygun." },
-    { id: "demo-4", date: dateAt(-6), home: "Yıldız Çocuk Evi", type: "Eğitim", eventName: "Bilim atölyesi", location: "Bilim Merkezi", startTime: "11:00", endTime: "12:30", notes: "" },
-    { id: "demo-5", date: dateAt(-10), home: "Güneş Çocuk Evi", type: "Spor", eventName: "Yüzme etkinliği", location: "Olimpik Havuz", startTime: "14:00", endTime: "15:00", notes: "" }
-  ];
-}
-
 function normalizeRecords(list) {
-  return list.filter((record) => record && typeof record === "object").map((record, index) => ({
+  return list.filter((record) => record && typeof record === "object" && !LEGACY_DEMO_RECORD_IDS.has(String(record.id || ""))).map((record, index) => ({
     id: String(record.id || `record-${index + 1}`),
     date: typeof record.date === "string" && !Number.isNaN(parseDate(record.date).getTime()) ? record.date : todayISO(),
     home: String(record.home || "").trim() || "İsimsiz çocuk evi",
@@ -58,12 +44,18 @@ function normalizeHomes(list) {
   return [...new Set(list.filter((home) => typeof home === "string").map((home) => home.trim().replace(/\s+/g, " ")).filter(Boolean))];
 }
 
+function normalizeHomeName(value) {
+  const cleanName = String(value || "").trim().replace(/\s+/g, " ");
+  if (!cleanName) return "";
+  return /\s+çocuk\s+evi$/i.test(cleanName) ? cleanName : `${cleanName} Çocuk Evi`;
+}
+
 function getRecords() {
   try {
     const stored = JSON.parse(localStorage.getItem(RECORDS_STORAGE_KEY));
-    return Array.isArray(stored) ? normalizeRecords(stored) : getSampleRecords();
+    return Array.isArray(stored) ? normalizeRecords(stored) : [];
   } catch {
-    return getSampleRecords();
+    return [];
   }
 }
 
@@ -94,6 +86,35 @@ function saveHomes(homeList) {
     return true;
   } catch {
     showToast("Çocuk evi cihazda saklanamadı. Tarayıcı depolamasını kontrol edin.");
+    return false;
+  }
+}
+
+function normalizeHomeResponsibles(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.entries(value).reduce((responsibles, [home, name]) => {
+    const cleanHome = String(home || "").trim();
+    const cleanName = String(name || "").trim().replace(/\s+/g, " ");
+    if (cleanHome && cleanName) responsibles[cleanHome] = cleanName;
+    return responsibles;
+  }, {});
+}
+
+function getHomeResponsibles() {
+  try {
+    return normalizeHomeResponsibles(JSON.parse(localStorage.getItem(HOME_RESPONSIBLES_STORAGE_KEY)));
+  } catch {
+    return {};
+  }
+}
+
+function saveHomeResponsibles(responsibles) {
+  try {
+    localStorage.setItem(HOME_RESPONSIBLES_STORAGE_KEY, JSON.stringify(responsibles));
+    queueFirebaseSync();
+    return true;
+  } catch {
+    showToast("Ev sorumlusu bilgisi cihazda saklanamadı. Tarayıcı depolamasını kontrol edin.");
     return false;
   }
 }
@@ -129,6 +150,7 @@ function saveHomeProfiles(profiles) {
 let records = getRecords();
 let homes = getHomes();
 let homeProfiles = getHomeProfiles();
+let homeResponsibles = getHomeResponsibles();
 let editingRecordId = null;
 let homeModalMode = null;
 let selectedHomeName = null;
@@ -172,7 +194,7 @@ function firebaseSafeKey(value) {
 function firebaseStatePayload() {
   const cloudHomes = {};
   homes.forEach((home) => {
-    cloudHomes[firebaseSafeKey(home)] = { name: home };
+    cloudHomes[firebaseSafeKey(home)] = { name: home, responsibleName: homeResponsibles[home] || "" };
   });
   const cloudRecords = {};
   records.forEach((record) => {
@@ -211,6 +233,15 @@ function cloudHomesToList(value) {
   return normalizeHomes(Object.values(value || {}).map((item) => typeof item === "string" ? item : item?.name));
 }
 
+function cloudResponsiblesToMap(value) {
+  return Object.values(value || {}).reduce((responsibles, item) => {
+    const home = String(item?.name || "").trim();
+    const responsibleName = String(item?.responsibleName || "").trim();
+    if (home && responsibleName) responsibles[home] = responsibleName;
+    return responsibles;
+  }, {});
+}
+
 function cloudProfilesToMap(value) {
   return Object.values(value || {}).reduce((profiles, profile) => {
     const home = String(profile?.homeName || "").trim();
@@ -229,15 +260,23 @@ async function hydrateFromFirebase() {
       firebaseState.database.ref("eventRecords").once("value"),
       firebaseState.database.ref("homeProfiles").once("value")
     ]);
+    const cloudHomes = homesSnapshot.exists() ? cloudHomesToList(homesSnapshot.val()) : [];
+    const cloudResponsibles = homesSnapshot.exists() ? cloudResponsiblesToMap(homesSnapshot.val()) : {};
+    const cloudRecords = recordsSnapshot.exists() ? normalizeRecords(Object.values(recordsSnapshot.val() || {})) : [];
+    const cloudProfiles = profilesSnapshot.exists() ? cloudProfilesToMap(profilesSnapshot.val()) : {};
     const hasCloudData = homesSnapshot.exists() || recordsSnapshot.exists() || profilesSnapshot.exists();
-    if (homesSnapshot.exists()) homes = cloudHomesToList(homesSnapshot.val());
-    if (recordsSnapshot.exists()) records = normalizeRecords(Object.values(recordsSnapshot.val() || {}));
-    if (profilesSnapshot.exists()) homeProfiles = cloudProfilesToMap(profilesSnapshot.val());
+    const hasLegacyDemoHomes = cloudHomes.length > 0 && cloudHomes.every((home) => LEGACY_DEMO_HOMES.has(home));
+    const shouldClearLegacyDemo = hasLegacyDemoHomes && cloudRecords.length === 0;
+    homes = shouldClearLegacyDemo ? [] : (homesSnapshot.exists() ? cloudHomes : homes);
+    homeResponsibles = shouldClearLegacyDemo ? {} : (homesSnapshot.exists() ? cloudResponsibles : homeResponsibles);
+    records = shouldClearLegacyDemo ? [] : (recordsSnapshot.exists() ? cloudRecords : records);
+    homeProfiles = shouldClearLegacyDemo ? {} : (profilesSnapshot.exists() ? cloudProfiles : homeProfiles);
     saveHomes(homes);
+    saveHomeResponsibles(homeResponsibles);
     saveRecords(records);
     saveHomeProfiles(homeProfiles);
     updateEverything();
-    if (!hasCloudData) {
+    if (!hasCloudData || shouldClearLegacyDemo) {
       firebaseState.hydrating = false;
       await syncFirebaseState();
     }
@@ -552,10 +591,11 @@ function renderHomes() {
   list.innerHTML = homes.map((home) => {
     const eventCount = records.filter((record) => record.home === home).length;
     const isSelected = selectedHomeDetail === home;
+    const responsibleLabel = homeResponsibles[home] ? `<span class="home-responsible">Sorumlu: ${escapeHTML(homeResponsibles[home])}</span>` : "";
     const adminActions = canManageHomes
       ? `<button class="row-action row-edit" type="button" data-rename-home="${escapeHTML(home)}">Adını değiştir</button><button class="row-action row-delete" type="button" data-delete-home="${escapeHTML(home)}">Sil</button>`
       : `<span class="home-role-note">Yönetici yönetir</span>`;
-    return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span></button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button>${adminActions}</div></div>`;
+    return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span>${responsibleLabel}</button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button>${adminActions}</div></div>`;
   }).join("");
 }
 
@@ -643,6 +683,7 @@ function renderHomeDetail() {
   const photo = $("#home-detail-photo");
   const placeholder = $("#home-detail-photo-placeholder");
   const photoButton = $("#home-photo-button");
+  $("#home-profile-title").textContent = homeResponsibles[selectedHomeDetail] || "Sorumlu adı belirtilmedi";
   photoButton.hidden = !(!firebaseState.enabled || isAdminUser());
   if (profile?.photoDataUrl) {
     photo.src = profile.photoDataUrl;
@@ -890,18 +931,28 @@ function deleteRecord(id) {
   showToast("Kayıt silindi.");
 }
 
-function addHome(name) {
-  const cleanName = name.trim().replace(/\s+/g, " ");
+function addHome(name, responsibleName) {
+  const cleanName = normalizeHomeName(name);
+  const cleanResponsibleName = String(responsibleName || "").trim().replace(/\s+/g, " ");
   if (!cleanName) return false;
+  if (!cleanResponsibleName) {
+    showToast("Ev sorumlusunun adını yazın.");
+    return false;
+  }
   if (homes.some((home) => home.toLocaleLowerCase("tr-TR") === cleanName.toLocaleLowerCase("tr-TR"))) {
     showToast("Bu çocuk evi zaten kayıtlı.");
     return false;
   }
   const previousHomes = [...homes];
+  const previousResponsibles = { ...homeResponsibles };
   homes.push(cleanName);
+  homeResponsibles = { ...homeResponsibles, [cleanName]: cleanResponsibleName };
   homes.sort((a, b) => a.localeCompare(b, "tr"));
-  if (!saveHomes(homes)) {
+  if (!saveHomes(homes) || !saveHomeResponsibles(homeResponsibles)) {
     homes = previousHomes;
+    homeResponsibles = previousResponsibles;
+    saveHomes(previousHomes);
+    saveHomeResponsibles(previousResponsibles);
     return false;
   }
   updateEverything();
@@ -923,6 +974,9 @@ function openHomeModal(mode, name, trigger = null) {
   $("#home-modal-title").textContent = isRename ? "Çocuk evinin adını değiştir" : "Çocuk evini sil";
   $("#home-modal-description").textContent = isRename ? "Yeni isim geçmiş etkinlik kayıtlarına da uygulanır." : `“${name}” çocuk evini listeden kaldırmak üzeresiniz.`;
   $("#home-modal-name").value = isRename ? name : "";
+  $("#home-modal-responsible").value = isRename ? (homeResponsibles[name] || "") : "";
+  $("#home-modal-responsible").closest("label").hidden = !isRename;
+  $("#home-modal-responsible").required = isRename;
   $("#home-delete-message").textContent = eventCount
     ? `Bu eve ait ${eventCount} geçmiş etkinlik kaydı silinmeyecek. Ev yalnızca yeni kayıtlarda seçilebilecek listeden kaldırılacak.`
     : "Bu çocuk evi yeni kayıtlarda seçilebilecek listeden kaldırılacak.";
@@ -943,14 +997,19 @@ function handleHomeModal(event) {
   if (homeModalMode === "delete") {
     const previousHomes = homes;
     const previousProfiles = homeProfiles;
+    const previousResponsibles = homeResponsibles;
     homes = homes.filter((home) => home !== oldName);
     homeProfiles = { ...homeProfiles };
+    homeResponsibles = { ...homeResponsibles };
     delete homeProfiles[oldName];
-    if (!saveHomes(homes) || !saveHomeProfiles(homeProfiles)) {
+    delete homeResponsibles[oldName];
+    if (!saveHomes(homes) || !saveHomeProfiles(homeProfiles) || !saveHomeResponsibles(homeResponsibles)) {
       homes = previousHomes;
       homeProfiles = previousProfiles;
+      homeResponsibles = previousResponsibles;
       saveHomes(previousHomes);
       saveHomeProfiles(previousProfiles);
+      saveHomeResponsibles(previousResponsibles);
       return;
     }
     if (selectedHomeDetail === oldName) selectedHomeDetail = null;
@@ -960,10 +1019,15 @@ function handleHomeModal(event) {
     return;
   }
 
-  const newName = $("#home-modal-name").value.trim().replace(/\s+/g, " ");
+  const newName = normalizeHomeName($("#home-modal-name").value);
+  const newResponsibleName = $("#home-modal-responsible").value.trim().replace(/\s+/g, " ");
   const error = $("#home-modal-error");
   if (!newName) {
     error.textContent = "Lütfen çocuk evinin adını yazın.";
+    return;
+  }
+  if (!newResponsibleName) {
+    error.textContent = "Lütfen ev sorumlusunun adını yazın.";
     return;
   }
   if (homes.some((home) => home !== oldName && home.toLocaleLowerCase("tr-TR") === newName.toLocaleLowerCase("tr-TR"))) {
@@ -973,20 +1037,26 @@ function handleHomeModal(event) {
   const previousHomes = homes;
   const previousRecords = records;
   const previousProfiles = homeProfiles;
+  const previousResponsibles = homeResponsibles;
   homes = homes.map((home) => home === oldName ? newName : home).sort((a, b) => a.localeCompare(b, "tr"));
   records = records.map((record) => record.home === oldName ? { ...record, home: newName } : record);
   homeProfiles = { ...homeProfiles };
+  homeResponsibles = { ...homeResponsibles };
   if (homeProfiles[oldName]) {
     homeProfiles[newName] = homeProfiles[oldName];
     delete homeProfiles[oldName];
   }
-  if (!saveHomes(homes) || !saveRecords(records) || !saveHomeProfiles(homeProfiles)) {
+  if (homeResponsibles[oldName]) delete homeResponsibles[oldName];
+  homeResponsibles[newName] = newResponsibleName;
+  if (!saveHomes(homes) || !saveRecords(records) || !saveHomeProfiles(homeProfiles) || !saveHomeResponsibles(homeResponsibles)) {
     homes = previousHomes;
     records = previousRecords;
     homeProfiles = previousProfiles;
+    homeResponsibles = previousResponsibles;
     saveHomes(previousHomes);
     saveRecords(previousRecords);
     saveHomeProfiles(previousProfiles);
+    saveHomeResponsibles(previousResponsibles);
     return;
   }
   if (selectedHomeDetail === oldName) selectedHomeDetail = newName;
@@ -1204,8 +1274,12 @@ function init() {
   });
   $("#home-add-form").addEventListener("submit", (event) => {
     event.preventDefault();
-    const input = $("#new-home-name");
-    if (addHome(input.value)) input.value = "";
+    const nameInput = $("#new-home-name");
+    const responsibleInput = $("#new-home-responsible");
+    if (addHome(nameInput.value, responsibleInput.value)) {
+      nameInput.value = "";
+      responsibleInput.value = "";
+    }
   });
   $("#homes-list").addEventListener("click", (event) => {
     const openButton = event.target.closest("[data-open-home]");

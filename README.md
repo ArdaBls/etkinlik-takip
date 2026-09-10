@@ -37,13 +37,15 @@ Kuralları uygulamak için hem `firebase/database.rules.json` içindeki hem de `
 Realtime Database'de kişi bazlı çocuk verisi içeren bir koleksiyon oluşturulmayacaktır. Uygulamanın kullandığı yollar:
 
 - `eventRecords/{recordId}`: tarih, çocuk evi, etkinlik türü/adı/yeri/saatleri ve genel açıklama
-- `homes/{homeId}`: çocuk evi adı
+- `homes/{homeId}`: çocuk evi adı (`name`) ve ev sorumlusu adı (`responsibleName`)
 - `homeProfiles/{homeId}`: çocuk evi adı ve sıkıştırılmış base64 fotoğraf veri URL'si
 
 Firebase Authentication ile tek admin ve birden fazla ev sorumlusu giriş yapabilir. Admin; çocuk evi, profil fotoğrafı ve kullanıcı rolü ayarlarını yönetir. Ev sorumluları etkinlik kayıtlarını kullanır; çocuk evi yönetim düğmeleri admin olmayan hesaplarda gizlenir. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
 
-Kayıt olan hesapların Firebase Authentication'da e-posta doğrulaması yapması gerekir. Kullanıcı rolleri `users/{uid}` altında tutulur; yeni kayıtlar yalnızca `responsible` rolüyle oluşturulabilir. Admin rolü Firebase Console üzerinden atanır veya `adminEmail` eşleşmesiyle tanınır.
+Kayıt olan hesapların Firebase Authentication'da e-posta doğrulaması yapması gerekir. Kullanıcı rolleri `users/{uid}` altında tutulur; yeni kayıtlar yalnızca `responsible` rolüyle oluşturulabilir. Admin yapmak için ilgili kullanıcının `users/{uid}/role` değerini `admin` yapın. Kurallar admin e-postasını veya bu rolü kontrol eder.
 
 Firebase CLI ile yayımlamak için kök klasörde `firebase login` ve ardından `firebase deploy --only database` çalıştırılabilir. GitHub Pages iş akışı (`.github/workflows/pages.yml`) yalnızca statik siteyi yayımlar; Firebase kuralları ayrıca Firebase Console veya CLI üzerinden yayımlanmalıdır.
 
 Ev sorumlusu fotoğrafı tarayıcıda en fazla 640 px kenar ve yaklaşık 700 KB veri URL'si olacak şekilde sıkıştırılır. Firebase'e gönderilen fotoğraf base64 olarak kalır. Üretimde ev kayıtlarına sabit kimlik verilmesi, yeniden adlandırma işlemlerinin de transaction/batch ile yapılması önerilir.
+
+Yeni çocuk evi eklerken forma yalnızca kısa ad yazılır; örneğin `Mercan` otomatik olarak `Mercan Çocuk Evi` şeklinde kaydedilir. Ev sorumlusunun adı ayrıca zorunlu alandır.

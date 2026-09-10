@@ -145,7 +145,8 @@
           <div><h2>Çocuk evleri</h2><p>Etkinlik kaydı oluştururken kullanılacak çocuk evlerini yönetin.</p></div>
         </div>
           <form class="home-add-form" id="home-add-form" data-admin-only>
-          <label class="search-field"><input id="new-home-name" type="text" maxlength="80" placeholder="Yeni çocuk evinin adı" aria-label="Yeni çocuk evinin adı" required /></label>
+          <label class="search-field"><input id="new-home-name" type="text" maxlength="80" placeholder="Örn. Mercan" aria-label="Çocuk evinin kısa adı" required /></label>
+          <label class="search-field"><input id="new-home-responsible" type="text" maxlength="80" placeholder="Ev sorumlusunun adı" aria-label="Ev sorumlusunun adı" required /></label>
           <button class="button button-primary button-small" type="submit">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
             Çocuk evi ekle
@@ -276,6 +277,7 @@
       </div>
       <form id="home-modal-form" novalidate>
         <label class="home-name-field"><span>Çocuk evinin adı</span><input id="home-modal-name" type="text" maxlength="80" /></label>
+        <label class="home-responsible-field"><span>Ev sorumlusunun adı</span><input id="home-modal-responsible" type="text" maxlength="80" /></label>
         <div class="delete-notice" id="home-delete-notice" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01M10.3 3.8 2.4 18a2 2 0 0 0 1.8 3h15.6a2 2 0 0 0 1.8-3L13.7 3.8a2 2 0 0 0-3.4 0Z"/></svg>
           <p id="home-delete-message"></p>
