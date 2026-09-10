@@ -611,6 +611,8 @@ function renderRecordsTable() {
 function renderHomes() {
   const list = $("#homes-list");
   if (!list) return;
+  const homesTotal = $("#homes-total-count");
+  if (homesTotal) homesTotal.textContent = String(homes.length);
   if (!homes.length) {
     list.innerHTML = `<div class="empty-state"><strong>Henüz çocuk evi eklenmedi.</strong><p>Etkinlik kaydı oluşturmak için önce bir çocuk evi ekleyin.</p></div>`;
     return;
@@ -644,7 +646,7 @@ function renderHomes() {
     const headingId = `responsible-group-${groupIndex}`;
     if (document.body.dataset.page === "homes") {
       const isOpen = sortedHomes.includes(selectedHomeDetail);
-      return `<details class="responsible-accordion"${isOpen ? " open" : ""}><summary aria-controls="${headingId}-homes"><span class="responsible-accordion-copy"><span class="section-kicker">Ev sorumlusu</span><strong id="${headingId}">${escapeHTML(responsible)}</strong></span><span class="responsible-accordion-count">${sortedHomes.length} çocuk evi</span></summary><div class="responsible-home-grid" id="${headingId}-homes">${sortedHomes.map(renderHomeCard).join("")}</div></details>`;
+      return `<div class="responsible-accordion${isOpen ? " is-open" : ""}" data-responsible-group="${groupIndex}"><button class="responsible-accordion-toggle" type="button" data-toggle-responsible="${groupIndex}" aria-expanded="${isOpen}" aria-controls="${headingId}-homes"><span class="responsible-accordion-chevron" aria-hidden="true"></span><span class="responsible-accordion-copy"><strong id="${headingId}">${escapeHTML(responsible)}</strong></span><span class="responsible-accordion-count">${sortedHomes.length}</span></button><div class="responsible-accordion-panel" id="${headingId}-homes"${isOpen ? "" : " hidden"}><div class="responsible-home-grid">${sortedHomes.map(renderHomeCard).join("")}</div></div></div>`;
     }
     return `<section class="responsible-home-group" aria-labelledby="${headingId}"><div class="responsible-group-heading"><div><p class="section-kicker">Ev sorumlusu</p><h3 id="${headingId}">${escapeHTML(responsible)}</h3></div><span>${sortedHomes.length} çocuk evi</span></div><div class="responsible-home-grid">${sortedHomes.map(renderHomeCard).join("")}</div></section>`;
   }).join("");
@@ -1337,6 +1339,24 @@ function initHomesPage() {
       }
     });
     $("#homes-list").addEventListener("click", (event) => {
+      const toggleButton = event.target.closest("[data-toggle-responsible]");
+      if (toggleButton) {
+        const group = toggleButton.closest("[data-responsible-group]");
+        const panel = group?.querySelector(".responsible-accordion-panel");
+        const willOpen = !group?.classList.contains("is-open");
+        $("#homes-list").querySelectorAll(".responsible-accordion.is-open").forEach((openGroup) => {
+          openGroup.classList.remove("is-open");
+          openGroup.querySelector(".responsible-accordion-toggle")?.setAttribute("aria-expanded", "false");
+          const openPanel = openGroup.querySelector(".responsible-accordion-panel");
+          if (openPanel) openPanel.hidden = true;
+        });
+        if (group && panel && willOpen) {
+          group.classList.add("is-open");
+          toggleButton.setAttribute("aria-expanded", "true");
+          panel.hidden = false;
+        }
+        return;
+      }
       const openButton = event.target.closest("[data-open-home]");
       const renameButton = event.target.closest("[data-rename-home]");
       const deleteButton = event.target.closest("[data-delete-home]");
