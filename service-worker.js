@@ -1,11 +1,12 @@
 // Bump this value whenever a deployed asset changes so returning users do not
 // get an older cached shell after a GitHub Pages update.
-const CACHE_NAME = "etkinlik-takip-v2";
+const CACHE_NAME = "etkinlik-takip-v3";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./firebase-config.js",
   "./manifest.webmanifest",
   "./icons/icon-180.png",
   "./icons/icon-192.png",

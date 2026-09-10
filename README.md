@@ -1,12 +1,10 @@
-# Etkinlik Takip — yerel taslak
+# Etkinlik Takip — Firebase ve GitHub Pages
 
-Bu sürüm, çocuk evlerinin etkinliklerinin kişi bilgisi içermeden kaydedilmesi için hazırlanmış statik ön yüz taslağıdır.
+Çocuk evlerinin etkinlik katılımlarını kişi bilgisi toplamadan kaydeden, tek yöneticiyle kullanılan statik bir web uygulamasıdır. GitHub Pages üzerinde yayınlanır; veriler Firebase Realtime Database'de, tarayıcıda ise çevrimdışı önbellek olarak tutulur.
 
 ## Yerelde açma
 
-`index.html` dosyasını tarayıcıda açmak yeterlidir. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
-
-Taslakta oluşturulan kayıtlar yalnızca o tarayıcının `localStorage` alanında tutulur. Gerçek kullanıcı, yetki ve ortak veri erişimi henüz yoktur.
+`index.html` dosyasını tarayıcıda açmak arayüzü görmeye yeterlidir. Firebase Authentication ve Realtime Database için GitHub Pages veya başka bir HTTP/HTTPS sunucusu kullanın. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
 
 PWA servis çalışanı `file://` adresinde çalışmaz. PWA kurulumu ve çevrimdışı çalışma testi için siteyi yerel bir HTTP sunucusundan veya GitHub Pages üzerindeki HTTPS adresinden açın.
 
@@ -30,14 +28,20 @@ PWA servis çalışanı `file://` adresinde çalışmaz. PWA kurulumu ve çevrim
 
 Kurulan uygulama tarayıcı çubukları olmadan bağımsız pencere olarak açılır. Excel kitaplığı ilk kez çevrimiçi yüklenmelidir.
 
-## Firebase'e geçerken
+## Firebase bağlantısı ve kuralları
 
-Firebase yapılandırması bu repoya eklenmeden önce proje açılmalı ve yönetici kullanıcı belirlenmelidir. Firestore'da kişi bazlı çocuk verisi içeren bir koleksiyon oluşturulmayacaktır. Önerilen tek veri koleksiyonu `eventRecords` olup her kayıtta yalnızca şunlar bulunur:
+Firebase Realtime Database bağlantısı `firebase-config.js` içinde tanımlıdır. Uygulama açıldığında Firebase Authentication üzerinden yalnızca yönetici e-postası ve parolasıyla giriş yapılır. Firebase Console'da **Authentication → Sign-in method → Email/Password** yöntemini açın ve tek yönetici hesabını oluşturun.
 
-- tarih, çocuk evi, etkinlik türü/adı/yeri/saatleri
-- genel açıklama notu
-- kayıt oluşturma ve güncelleme zamanları
+Kuralları uygulamak için `firebase/database.rules.json` dosyasındaki `ADMIN_EMAIL_HERE` değerini yöneticinin doğrulanmış e-posta adresiyle değiştirip Firebase Console'daki Realtime Database **Rules** ekranına aktarın. Firebase CLI kullanıyorsanız kökteki `firebase.json` dosyası bu kural dosyasını gösterir.
 
-Firebase Authentication ile yalnızca tek ev sorumlusu giriş yapacak ve tüm kayıtları, çocuk evlerini ve raporları yönetebilecektir. Bu yetkilendirme yalnızca arayüzde değil, Firestore kurallarında da zorunlu kılınmalıdır.
+Realtime Database'de kişi bazlı çocuk verisi içeren bir koleksiyon oluşturulmayacaktır. Uygulamanın kullandığı yollar:
 
-Ev sorumlusu fotoğrafı yerel taslakta sıkıştırılmış base64 veri URL'si olarak tutulur. Firebase'e geçerken çocuk evlerine sabit bir `homeId` verilmeli; profil fotoğrafı da `homeProfiles/{homeId}` altında saklanmalıdır. Ev adı değişiklikleri ev, profil ve etkinlik kayıtlarını birlikte güncelleyen bir transaction/batch ile yapılmalıdır.
+- `eventRecords/{recordId}`: tarih, çocuk evi, etkinlik türü/adı/yeri/saatleri ve genel açıklama
+- `homes/{homeId}`: çocuk evi adı
+- `homeProfiles/{homeId}`: çocuk evi adı ve sıkıştırılmış base64 fotoğraf veri URL'si
+
+Firebase Authentication ile yalnızca tek ev sorumlusu giriş yapar. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
+
+Firebase CLI ile yayımlamak için kök klasörde `firebase login` ve ardından `firebase deploy --only database` çalıştırılabilir. GitHub Pages iş akışı (`.github/workflows/pages.yml`) yalnızca statik siteyi yayımlar; Firebase kuralları ayrıca Firebase Console veya CLI üzerinden yayımlanmalıdır.
+
+Ev sorumlusu fotoğrafı tarayıcıda en fazla 640 px kenar ve yaklaşık 700 KB veri URL'si olacak şekilde sıkıştırılır. Firebase'e gönderilen fotoğraf base64 olarak kalır. Üretimde ev kayıtlarına sabit kimlik verilmesi, yeniden adlandırma işlemlerinin de transaction/batch ile yapılması önerilir.

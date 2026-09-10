@@ -1,0 +1,21 @@
+{
+  "rules": {
+    ".read": "auth != null && auth.token.email == 'ADMIN_EMAIL_HERE' && auth.token.email_verified == true",
+    ".write": "auth != null && auth.token.email == 'ADMIN_EMAIL_HERE' && auth.token.email_verified == true",
+    "eventRecords": {
+      "$recordId": {
+        ".validate": "!newData.exists() || newData.hasChildren(['id', 'date', 'home', 'type', 'eventName'])"
+      }
+    },
+    "homes": {
+      "$homeId": {
+        ".validate": "!newData.exists() || newData.hasChildren(['name'])"
+      }
+    },
+    "homeProfiles": {
+      "$homeId": {
+        ".validate": "!newData.exists() || (newData.hasChildren(['homeName', 'photoDataUrl']) && newData.child('photoDataUrl').isString())"
+      }
+    }
+  }
+}

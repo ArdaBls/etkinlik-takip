@@ -28,6 +28,22 @@
     <div class="page-glow glow-one" aria-hidden="true"></div>
     <div class="page-glow glow-two" aria-hidden="true"></div>
 
+    <div class="auth-gate" id="auth-gate" hidden>
+      <section class="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title" aria-describedby="auth-description">
+        <div class="brand auth-brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 21c5-3.1 8-6.6 8-11V5.8L12 3 4 5.8V10c0 4.4 3 7.9 8 11Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg></span><span>Etkinlik <strong>Takip</strong></span></div>
+        <p class="section-kicker">Yönetici girişi</p>
+        <h1 id="auth-title">Etkinlik Takip</h1>
+        <p id="auth-description">Bu uygulamadaki kayıtlar yalnızca yetkili ev sorumlusu tarafından yönetilebilir.</p>
+        <form id="auth-form" novalidate>
+          <label><span>E-posta</span><input id="auth-email" type="email" autocomplete="username" required /></label>
+          <label><span>Parola</span><input id="auth-password" type="password" autocomplete="current-password" required /></label>
+          <p class="form-error" id="auth-error" role="alert"></p>
+          <button class="button button-primary" type="submit">Giriş yap</button>
+        </form>
+        <small class="auth-note">Yönetici hesabı Firebase Authentication üzerinden oluşturulur.</small>
+      </section>
+    </div>
+
     <header class="site-header">
       <a class="brand" href="#overview" aria-label="Etkinlik Takip ana sayfa">
         <span class="brand-mark" aria-hidden="true">
@@ -53,6 +69,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
           Uygulamayı yükle
         </button>
+        <button class="button button-ghost button-small auth-logout" id="auth-logout" type="button" hidden>Çıkış</button>
         <button class="icon-button" id="theme-toggle" type="button" aria-label="Koyu temaya geç">
           <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
@@ -226,7 +243,7 @@
       </section>
     </main>
 
-    <footer class="site-footer section-shell"><span>Etkinlik Takip</span><span>Yerel taslak</span></footer>
+    <footer class="site-footer section-shell"><span>Etkinlik Takip</span><span id="data-mode">Yerel taslak</span></footer>
 
     <div class="modal-backdrop" id="modal-backdrop" hidden></div>
     <section class="record-modal" id="record-modal" aria-modal="true" aria-labelledby="record-modal-title" aria-describedby="record-modal-description" role="dialog" hidden>
@@ -264,6 +281,10 @@
     </section>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="app.js"></script>
   </body>

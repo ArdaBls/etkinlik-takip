@@ -1,13 +1,12 @@
 /*
- * Yerel taslak veri katmanı. Firebase bağlantısı eklendiğinde yalnızca
- * getRecords / saveRecords fonksiyonları Firestore çağrılarıyla değiştirilecek.
+ * Firebase Realtime Database + yerel önbellek veri katmanı.
  * Çocuklara ait kişi veya kimlik bilgisi bu uygulamada tutulmaz.
  */
 
 const RECORDS_STORAGE_KEY = "etkinlik-takip-records-v2";
 const HOMES_STORAGE_KEY = "etkinlik-takip-homes-v1";
-// Firebase'e geçildiğinde bu alan, homeProfiles/{homeId} içindeki photoDataUrl
-// alanına taşınacak. Şimdilik yerel prototipte base64 veri URL'si saklanır.
+// Ev sorumlusu fotoğrafı homeProfiles/{homeId} içindeki photoDataUrl
+// alanında base64 veri URL'si olarak saklanır; localStorage çevrimdışı önbellektir.
 const HOME_PROFILES_STORAGE_KEY = "etkinlik-takip-home-profiles-v1";
 const DEFAULT_HOMES = ["Güneş Çocuk Evi", "Umut Çocuk Evi", "Papatya Çocuk Evi", "Yıldız Çocuk Evi"];
 const PHOTO_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/;
@@ -71,6 +70,7 @@ function getRecords() {
 function saveRecords(records) {
   try {
     localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(records));
+    queueFirebaseSync();
     return true;
   } catch {
     showToast("Kayıt cihazda saklanamadı. Tarayıcı depolamasını kontrol edin.");
@@ -90,6 +90,7 @@ function getHomes() {
 function saveHomes(homeList) {
   try {
     localStorage.setItem(HOMES_STORAGE_KEY, JSON.stringify(homeList));
+    queueFirebaseSync();
     return true;
   } catch {
     showToast("Çocuk evi cihazda saklanamadı. Tarayıcı depolamasını kontrol edin.");
@@ -117,6 +118,7 @@ function getHomeProfiles() {
 function saveHomeProfiles(profiles) {
   try {
     localStorage.setItem(HOME_PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+    queueFirebaseSync();
     return true;
   } catch {
     showToast("Ev sorumlusunun fotoğrafı cihazda saklanamadı. Tarayıcı depolamasını kontrol edin.");
@@ -137,6 +139,14 @@ let ringFocusIndex = 0;
 let modalTrigger = null;
 let deferredInstallPrompt = null;
 let toastTimer;
+const firebaseState = {
+  enabled: false,
+  auth: null,
+  database: null,
+  user: null,
+  hydrating: false,
+  syncTimer: null
+};
 
 const TYPE_COLORS = {
   "Spor": "#126b63",
@@ -145,6 +155,171 @@ const TYPE_COLORS = {
   "Eğitim": "#d69b4d",
   "Diğer": "#6fae93"
 };
+
+function firebaseSafeKey(value) {
+  return encodeURIComponent(String(value))
+    .replace(/\./g, "%2E")
+    .replace(/\$/g, "%24")
+    .replace(/#/g, "%23")
+    .replace(/\[/g, "%5B")
+    .replace(/\]/g, "%5D");
+}
+
+function firebaseStatePayload() {
+  const cloudHomes = {};
+  homes.forEach((home) => {
+    cloudHomes[firebaseSafeKey(home)] = { name: home };
+  });
+  const cloudRecords = {};
+  records.forEach((record) => {
+    cloudRecords[firebaseSafeKey(record.id)] = { ...record };
+  });
+  const cloudProfiles = {};
+  Object.entries(homeProfiles).forEach(([home, profile]) => {
+    cloudProfiles[firebaseSafeKey(home)] = { homeName: home, photoDataUrl: profile.photoDataUrl };
+  });
+  return { homes: cloudHomes, eventRecords: cloudRecords, homeProfiles: cloudProfiles };
+}
+
+async function syncFirebaseState() {
+  if (!firebaseState.enabled || !firebaseState.user || firebaseState.hydrating) return;
+  try {
+    const payload = firebaseStatePayload();
+    await Promise.all([
+      firebaseState.database.ref("homes").set(payload.homes),
+      firebaseState.database.ref("eventRecords").set(payload.eventRecords),
+      firebaseState.database.ref("homeProfiles").set(payload.homeProfiles)
+    ]);
+  } catch (error) {
+    console.warn("Firebase verisi senkronize edilemedi:", error);
+    showToast("Firebase senkronizasyonu başarısız oldu. Yerel kayıt korunuyor.");
+  }
+}
+
+function queueFirebaseSync() {
+  if (!firebaseState.enabled || !firebaseState.user || firebaseState.hydrating) return;
+  clearTimeout(firebaseState.syncTimer);
+  firebaseState.syncTimer = setTimeout(() => syncFirebaseState(), 350);
+}
+
+function cloudHomesToList(value) {
+  return normalizeHomes(Object.values(value || {}).map((item) => typeof item === "string" ? item : item?.name));
+}
+
+function cloudProfilesToMap(value) {
+  return Object.values(value || {}).reduce((profiles, profile) => {
+    const home = String(profile?.homeName || "").trim();
+    const photoDataUrl = String(profile?.photoDataUrl || "");
+    if (home && PHOTO_DATA_URL_PATTERN.test(photoDataUrl)) profiles[home] = { photoDataUrl };
+    return profiles;
+  }, {});
+}
+
+async function hydrateFromFirebase() {
+  if (!firebaseState.enabled || !firebaseState.user) return;
+  firebaseState.hydrating = true;
+  try {
+    const [homesSnapshot, recordsSnapshot, profilesSnapshot] = await Promise.all([
+      firebaseState.database.ref("homes").once("value"),
+      firebaseState.database.ref("eventRecords").once("value"),
+      firebaseState.database.ref("homeProfiles").once("value")
+    ]);
+    const hasCloudData = homesSnapshot.exists() || recordsSnapshot.exists() || profilesSnapshot.exists();
+    if (homesSnapshot.exists()) homes = cloudHomesToList(homesSnapshot.val());
+    if (recordsSnapshot.exists()) records = normalizeRecords(Object.values(recordsSnapshot.val() || {}));
+    if (profilesSnapshot.exists()) homeProfiles = cloudProfilesToMap(profilesSnapshot.val());
+    saveHomes(homes);
+    saveRecords(records);
+    saveHomeProfiles(homeProfiles);
+    updateEverything();
+    if (!hasCloudData) {
+      firebaseState.hydrating = false;
+      await syncFirebaseState();
+    }
+  } catch (error) {
+    console.warn("Firebase verisi okunamadı:", error);
+    showToast("Firebase verisi okunamadı. Yerel önbellek gösteriliyor.");
+  } finally {
+    firebaseState.hydrating = false;
+  }
+}
+
+function authErrorText(error) {
+  const messages = {
+    "auth/invalid-credential": "E-posta veya parola hatalı.",
+    "auth/invalid-email": "Geçerli bir e-posta adresi yazın.",
+    "auth/user-disabled": "Bu yönetici hesabı devre dışı bırakılmış.",
+    "auth/too-many-requests": "Çok fazla başarısız deneme yapıldı. Bir süre sonra tekrar deneyin."
+  };
+  return messages[error?.code] || "Giriş yapılamadı. Firebase Authentication ayarlarını kontrol edin.";
+}
+
+function showAuthGate(message = "Yalnızca yetkili ev sorumlusu giriş yapabilir.") {
+  $("#auth-gate").hidden = false;
+  $("#auth-error").textContent = message;
+  $("#auth-logout").hidden = true;
+  $("#data-mode").textContent = "Giriş bekleniyor";
+  document.body.style.overflow = "hidden";
+}
+
+function hideAuthGate() {
+  $("#auth-gate").hidden = true;
+  $("#auth-error").textContent = "";
+  $("#auth-logout").hidden = false;
+  $("#data-mode").textContent = "Firebase bağlı";
+  document.body.style.overflow = "";
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type=submit]");
+  const email = $("#auth-email").value.trim();
+  const password = $("#auth-password").value;
+  $("#auth-error").textContent = "";
+  if (!email || !password) {
+    $("#auth-error").textContent = "E-posta ve parola zorunludur.";
+    return;
+  }
+  button.disabled = true;
+  button.textContent = "Giriş yapılıyor…";
+  try {
+    await firebaseState.auth.signInWithEmailAndPassword(email, password);
+  } catch (error) {
+    $("#auth-error").textContent = authErrorText(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Giriş yap";
+  }
+}
+
+function initFirebase() {
+  const config = window.ETKINLIK_FIREBASE_CONFIG;
+  if (!config || typeof firebase === "undefined") {
+    $("#data-mode").textContent = "Yerel taslak";
+    return;
+  }
+  try {
+    const firebaseApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(config);
+    firebaseState.auth = firebase.auth(firebaseApp);
+    firebaseState.database = firebase.database(firebaseApp);
+    firebaseState.enabled = true;
+    $("#auth-form").addEventListener("submit", handleAuthSubmit);
+    $("#auth-logout").addEventListener("click", () => firebaseState.auth.signOut());
+    firebaseState.auth.onAuthStateChanged(async (user) => {
+      firebaseState.user = user;
+      if (!user) {
+        showAuthGate();
+        return;
+      }
+      hideAuthGate();
+      await hydrateFromFirebase();
+    });
+  } catch (error) {
+    console.warn("Firebase başlatılamadı:", error);
+    $("#data-mode").textContent = "Yerel taslak";
+  }
+}
 
 function getReportHomes() {
   return [...new Set([...homes, ...records.map((record) => record.home)])].sort((a, b) => a.localeCompare(b, "tr"));
@@ -897,6 +1072,7 @@ function initPWA() {
 }
 
 function init() {
+  initFirebase();
   initTheme();
   initPWA();
   $("#event-form [name=date]").value = todayISO();

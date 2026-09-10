@@ -231,3 +231,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .home-detail-table-wrap { overflow-x: auto; }
   .home-detail-table { min-width: 620px; }
 }
+
+.auth-gate { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--paper) 88%, var(--primary-pale)); backdrop-filter: blur(10px); }
+.auth-card { width: min(420px, 100%); padding: 30px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 24px 65px rgba(17,37,35,.18); }
+.auth-brand { margin-bottom: 28px; }
+.auth-card h1 { margin: 0; color: var(--ink-strong); font-family: "DM Sans", sans-serif; font-size: 26px; letter-spacing: -.8px; }
+.auth-card > p:not(.section-kicker) { margin: 8px 0 22px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.auth-card form { display: grid; gap: 13px; }
+.auth-card label { display: grid; gap: 6px; }
+.auth-card label > span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.auth-card input { width: 100%; min-height: 42px; padding: 0 11px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 9px; outline: 0; font-size: 13px; }
+.auth-card input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-pale); }
+.auth-card form .button { width: 100%; margin-top: 3px; }
+.auth-note { display: block; margin-top: 17px; color: var(--muted-light); font-size: 10px; line-height: 1.5; }
+.auth-logout { min-width: 53px; }
+
+@media (max-width: 620px) {
+  .auth-card { padding: 23px 18px; }
+  .auth-logout { width: 38px; min-height: 38px; padding: 0; font-size: 0; }
+  .auth-logout::before { content: "↪"; font-size: 17px; }
+}
