@@ -6,14 +6,14 @@
       "$uid": {
         ".read": "auth != null && (auth.uid == $uid || auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
         ".write": "auth != null && ((auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin') || (auth.uid == $uid && !data.exists() && newData.child('role').val() == 'responsible' && newData.child('email').val() == auth.token.email && newData.child('approved').val() == false))",
-        ".validate": "newData.hasChildren(['email', 'role']) && newData.child('email').isString() && (newData.child('role').val() == 'admin' || newData.child('role').val() == 'responsible') && (!newData.hasChild('approved') || newData.child('approved').isBoolean()) && (!newData.hasChild('blocked') || newData.child('blocked').isBoolean())"
+        ".validate": "newData.hasChildren(['email', 'role']) && newData.child('email').isString() && (newData.child('role').val() == 'admin' || newData.child('role').val() == 'responsible') && (!newData.hasChild('approved') || newData.child('approved').isBoolean()) && (!newData.hasChild('blocked') || newData.child('blocked').isBoolean()) && (!newData.hasChild('displayName') || newData.child('displayName').isString()) && (!newData.hasChild('firstName') || newData.child('firstName').isString()) && (!newData.hasChild('lastName') || newData.child('lastName').isString())"
       }
     },
     "eventRecords": {
       "$recordId": {
         ".read": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || (root.child('users').child(auth.uid).child('approved').val() == true && root.child('users').child(auth.uid).child('blocked').val() != true))",
-        ".write": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || (root.child('users').child(auth.uid).child('approved').val() == true && root.child('users').child(auth.uid).child('blocked').val() != true))",
-        ".validate": "!newData.exists() || newData.hasChildren(['id', 'date', 'home', 'type', 'eventName'])"
+        ".write": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || (root.child('users').child(auth.uid).child('approved').val() == true && root.child('users').child(auth.uid).child('blocked').val() != true && ((newData.exists() && newData.child('homeId').isString() && root.child('users').child(auth.uid).child('assignedHomeIds').child(newData.child('homeId').val()).val() == true) || (!newData.exists() && data.child('homeId').isString() && root.child('users').child(auth.uid).child('assignedHomeIds').child(data.child('homeId').val()).val() == true))))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'date', 'home', 'type', 'eventName', 'homeId']) && newData.child('homeId').isString())"
       }
     },
     "homes": {

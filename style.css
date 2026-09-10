@@ -80,6 +80,7 @@ svg { display: block; width: 1em; height: 1em; }
 .icon-button svg { width: 18px; height: 18px; }
 .moon-icon { display: none; }
 body.dark-theme .sun-icon { display: none; } body.dark-theme .moon-icon { display: block; }
+body.dark-theme #theme-toggle { display: none; }
 .profile-button { display: flex; align-items: center; gap: 8px; padding: 3px; padding-right: 5px; color: var(--ink); background: transparent; border: 0; text-align: left; }
 .profile-button > svg { width: 13px; color: var(--muted); }
 .profile-initials { display: grid; place-items: center; width: 34px; height: 34px; color: #fff; background: linear-gradient(145deg, #e2a18b, #bd6c5e); border-radius: 50%; font-size: 11px; font-weight: 700; }
@@ -317,6 +318,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .auth-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 0 18px; padding: 4px; background: var(--surface-warm); border: 1px solid var(--line); border-radius: 10px; }
 .auth-mode-button { min-height: 34px; padding: 0 10px; color: var(--muted); background: transparent; border: 0; border-radius: 7px; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
 .auth-mode-button.active { color: var(--ink-strong); background: var(--surface); box-shadow: 0 2px 8px rgba(17,37,35,.08); }
+.auth-register-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
 .home-role-note { align-self: center; color: var(--muted-light); font-size: 10px; }
 .home-responsible { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 600; }
 [data-admin-only][hidden] { display: none !important; }
@@ -335,7 +337,7 @@ body.app-pending > *:not(.page-glow) { visibility: hidden; }
 .users-section .section-heading-row > div > p:not(.section-kicker) { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
 .admin-pending-badge-large { min-height: 27px; padding-inline: 10px; font-size: 10px; }
 .users-list { overflow: hidden; margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; }
-.user-access-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.user-access-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .user-access-row:last-child { border-bottom: 0; }
 .user-access-copy { min-width: 0; }
 .user-access-copy strong { display: block; overflow: hidden; color: var(--ink-strong); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
@@ -346,6 +348,12 @@ body.app-pending > *:not(.page-glow) { visibility: hidden; }
 .user-access-status.pending { color: #946b27; background: var(--amber-pale); }
 .user-access-status.blocked { color: #a0443d; background: var(--coral-pale); }
 .user-access-actions .button { min-width: 82px; }
+.user-home-assignment { flex: 0 0 100%; padding: 11px 12px; background: var(--surface-warm); border: 1px solid var(--line); border-radius: 10px; }
+.user-home-assignment-title { display: block; margin-bottom: 8px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.user-home-assignment-list { display: flex; flex-wrap: wrap; gap: 7px 12px; }
+.user-home-assignment-list label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-size: 11px; cursor: pointer; }
+.user-home-assignment-list input { width: 15px; height: 15px; accent-color: var(--primary); }
+.user-home-assignment-empty { color: var(--muted); font-size: 10px; }
 .admin-pending-badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 3px; padding-inline: 4px; color: #fff; background: var(--coral); border-radius: 999px; font-size: 9px; line-height: 1; }
 .audit-log-heading { margin-top: 29px; padding-top: 23px; border-top: 1px solid var(--line); }
 .audit-log-heading h3 { margin: 0; color: var(--ink-strong); font-size: 15px; letter-spacing: -.35px; }
@@ -371,6 +379,8 @@ body.dark-theme .form-success { color: var(--mint); }
   .user-access-row { align-items: stretch; flex-direction: column; gap: 11px; padding: 13px; }
   .user-access-actions { justify-content: space-between; }
   .user-access-actions .button { flex: 1; }
+  .auth-register-fields { grid-template-columns: 1fr; gap: 13px; }
+  .user-home-assignment-list { display: grid; grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {

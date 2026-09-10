@@ -4,6 +4,24 @@
   let pendingRegistration = false;
   let auth = null;
   let database = null;
+  const PENDING_REGISTRATION_STORAGE_KEY = "etkinlik-takip-pending-registration-v1";
+
+  const readPendingRegistration = () => {
+    try {
+      const value = JSON.parse(localStorage.getItem(PENDING_REGISTRATION_STORAGE_KEY));
+      return value && typeof value === "object" ? value : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const savePendingRegistration = (value) => {
+    try { localStorage.setItem(PENDING_REGISTRATION_STORAGE_KEY, JSON.stringify(value)); } catch {}
+  };
+
+  const clearPendingRegistration = () => {
+    try { localStorage.removeItem(PENDING_REGISTRATION_STORAGE_KEY); } catch {}
+  };
 
   const authErrorText = (error) => {
     const messages = {
@@ -33,12 +51,12 @@
     $("#auth-pending").hidden = true;
   };
 
-  const showPendingState = (email) => {
+  const showPendingState = (email, displayName = "") => {
     $("#auth-form").hidden = true;
     $(".auth-mode-switch").hidden = true;
     $("#auth-note").hidden = true;
     $("#auth-pending").hidden = false;
-    $("#auth-pending-email").textContent = email;
+    $("#auth-pending-email").textContent = displayName ? `${displayName} · ${email}` : email;
     $("#auth-kicker").textContent = "Kayıt alındı";
     $("#auth-title").textContent = "Yönetici onayı bekleniyor";
     $("#auth-description").textContent = "Hesabınız oluşturuldu. Çalışma alanına erişim için yöneticinin izin vermesi gerekiyor.";
@@ -54,6 +72,9 @@
     $("#auth-register-mode").setAttribute("aria-selected", String(registering));
     $("#auth-password-confirm-field").hidden = !registering;
     $("#auth-password-confirm").required = registering;
+    $("#auth-register-fields").hidden = !registering;
+    $("#auth-first-name").required = registering;
+    $("#auth-last-name").required = registering;
     $("#auth-password").setAttribute("autocomplete", registering ? "new-password" : "current-password");
     $("#auth-submit").textContent = registering ? "Ev sorumlusu hesabı oluştur" : "Giriş yap";
     $("#auth-kicker").textContent = registering ? "Ev sorumlusu kaydı" : "Yönetici ve ev sorumlusu girişi";
@@ -84,6 +105,7 @@
     }
 
     const reason = new URLSearchParams(location.search).get("reason");
+    const pendingRegistrationData = readPendingRegistration();
     if (reason === "verify") setMessage("Devam etmek için e-posta adresinizi doğrulayın.");
     if (reason === "pending") setMessage("Hesabınız yönetici onayı bekliyor. İzin verildiğinde tekrar giriş yapabilirsiniz.");
     if (reason === "blocked") setMessage("Bu hesabın erişimi yönetici tarafından engellendi.");
@@ -102,9 +124,15 @@
       const email = $("#auth-email").value.trim();
       const password = $("#auth-password").value;
       const passwordConfirm = $("#auth-password-confirm").value;
+      const firstName = $("#auth-first-name").value.trim().replace(/\s+/g, " ");
+      const lastName = $("#auth-last-name").value.trim().replace(/\s+/g, " ");
       setMessage("");
       if (!email || !password) {
         setMessage("E-posta ve parola zorunludur.");
+        return;
+      }
+      if (authMode === "register" && (!firstName || !lastName)) {
+        setMessage("Ad ve soyad zorunludur.");
         return;
       }
       if (authMode === "register" && password !== passwordConfirm) {
@@ -117,18 +145,29 @@
         if (authMode === "register") {
           pendingRegistration = true;
           const credential = await auth.createUserWithEmailAndPassword(email, password);
+          const displayName = `${firstName} ${lastName}`;
+          try { await credential.user.updateProfile({ displayName }); } catch (profileError) { console.warn("Kullanıcı adı Auth profilinde güncellenemedi:", profileError); }
           await database.ref(`users/${encodeURIComponent(credential.user.uid)}`).set({
             email,
+            displayName,
+            firstName,
+            lastName,
             role: "responsible",
             approved: false,
+            blocked: false,
+            assignedHomeIds: {},
             createdAt: firebase.database.ServerValue.TIMESTAMP
           });
           await auth.signOut();
+          savePendingRegistration({ email, displayName, createdAt: Date.now() });
           $("#auth-password").value = "";
           $("#auth-password-confirm").value = "";
-          showPendingState(email);
+          $("#auth-first-name").value = "";
+          $("#auth-last-name").value = "";
+          showPendingState(email, displayName);
         } else {
           await auth.signInWithEmailAndPassword(email, password);
+          clearPendingRegistration();
         }
       } catch (error) {
         if (authMode === "register" && auth.currentUser) {
@@ -144,8 +183,13 @@
 
     auth.onAuthStateChanged(async (user) => {
       if (!user || pendingRegistration) return;
+      clearPendingRegistration();
       location.replace("./");
     });
+
+    if (reason === "pending" || (pendingRegistrationData && reason !== "blocked")) {
+      showPendingState(String(pendingRegistrationData?.email || ""), String(pendingRegistrationData?.displayName || ""));
+    }
   };
 
   initAuth();

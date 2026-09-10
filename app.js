@@ -32,6 +32,7 @@ function normalizeRecords(list) {
     id: String(record.id || `record-${index + 1}`),
     date: typeof record.date === "string" && !Number.isNaN(parseDate(record.date).getTime()) ? record.date : todayISO(),
     home: String(record.home || "").trim() || "İsimsiz çocuk evi",
+    homeId: String(record.homeId || "").trim(),
     type: String(record.type || "Diğer").trim() || "Diğer",
     eventName: String(record.eventName || "İsimsiz etkinlik").trim() || "İsimsiz etkinlik",
     location: String(record.location || "").trim(),
@@ -232,7 +233,7 @@ function firebaseStatePayload() {
   });
   const cloudRecords = {};
   records.forEach((record) => {
-    cloudRecords[firebaseSafeKey(record.id)] = { ...record };
+    cloudRecords[firebaseSafeKey(record.id)] = { ...record, homeId: homeIds[record.home] || record.homeId || "" };
   });
   const cloudProfiles = {};
   Object.entries(homeProfiles).forEach(([home, profile]) => {
@@ -269,7 +270,14 @@ async function syncFirebaseState() {
       Object.keys(previous || {}).filter((key) => !(key in current)).forEach((key) => { updates[`${path}/${key}`] = null; });
       Object.entries(current).forEach(([key, value]) => { updates[`${path}/${key}`] = value; });
     };
-    addCollectionUpdates("eventRecords", payload.eventRecords, firebaseState.lastCloudPayload.eventRecords);
+    if (firebaseState.role === "admin") {
+      addCollectionUpdates("eventRecords", payload.eventRecords, firebaseState.lastCloudPayload.eventRecords);
+    } else {
+      const accessibleNames = new Set(getAccessibleHomes());
+      const ownedCurrent = Object.fromEntries(Object.entries(payload.eventRecords).filter(([, item]) => accessibleNames.has(String(item.home || ""))));
+      const ownedPrevious = Object.fromEntries(Object.entries(firebaseState.lastCloudPayload.eventRecords || {}).filter(([, item]) => accessibleNames.has(String(item.home || ""))));
+      addCollectionUpdates("eventRecords", ownedCurrent, ownedPrevious);
+    }
     if (firebaseState.role === "admin") {
       addCollectionUpdates("homes", payload.homes, firebaseState.lastCloudPayload.homes);
       addCollectionUpdates("homeProfiles", payload.homeProfiles, firebaseState.lastCloudPayload.homeProfiles);
@@ -338,7 +346,9 @@ async function hydrateFromFirebase() {
     const cloudHomeData = homesSnapshot.exists() ? cloudHomesToData(homesSnapshot.val()) : { homes: [], ids: {} };
     const cloudHomes = cloudHomeData.homes;
     const cloudResponsibles = homesSnapshot.exists() ? cloudResponsiblesToMap(homesSnapshot.val()) : {};
-    const cloudRecords = recordsSnapshot.exists() ? normalizeRecords(Object.values(recordsSnapshot.val() || {})) : [];
+    const cloudRecords = recordsSnapshot.exists()
+      ? normalizeRecords(Object.values(recordsSnapshot.val() || {})).map((record) => ({ ...record, homeId: record.homeId || cloudHomeData.ids[record.home] || "" }))
+      : [];
     const cloudProfiles = profilesSnapshot.exists() ? cloudProfilesToMap(profilesSnapshot.val()) : {};
     firebaseState.lastCloudPayload = {
       homes: homesSnapshot.exists() ? homesSnapshot.val() || {} : {},
@@ -350,11 +360,20 @@ async function hydrateFromFirebase() {
     // Once Firebase auth is active, the cloud is the source of truth. In particular,
     // a missing node means the data was intentionally deleted and must not be
     // repopulated from an older localStorage snapshot on the next refresh.
-    homes = shouldClearLegacyDemo ? [] : cloudHomes;
     homeIds = shouldClearLegacyDemo ? {} : cloudHomeData.ids;
     homeResponsibles = shouldClearLegacyDemo ? {} : cloudResponsibles;
-    records = shouldClearLegacyDemo ? [] : cloudRecords;
     homeProfiles = shouldClearLegacyDemo ? {} : cloudProfiles;
+    homes = shouldClearLegacyDemo ? [] : cloudHomes;
+    records = shouldClearLegacyDemo ? [] : cloudRecords;
+    if (!isAdminUser()) {
+      const assignedIds = getAssignedHomeIds();
+      const assignedNames = Array.isArray(firebaseState.profile?.assignedHomes)
+        ? new Set(firebaseState.profile.assignedHomes.map((home) => String(home).trim()))
+        : new Set();
+      const accessibleNames = new Set(homes.filter((home) => (homeIds[home] && assignedIds.has(String(homeIds[home]))) || assignedNames.has(home)));
+      homes = homes.filter((home) => accessibleNames.has(home));
+      records = records.filter((record) => accessibleNames.has(record.home));
+    }
     saveHomes(homes);
     saveHomeIds(homeIds);
     saveHomeResponsibles(homeResponsibles);
@@ -383,9 +402,18 @@ function bindFirebaseRealtime() {
   if (firebaseState.user && !isAdminUser()) {
     firebaseState.database.ref(`users/${firebaseSafeKey(firebaseState.user.uid)}`).on("value", async (snapshot) => {
       const profile = snapshot.val() || {};
-      if (!firebaseState.user || (profile.approved === true && profile.blocked !== true)) return;
-      await firebaseState.auth.signOut();
-      redirectToLogin(profile.blocked === true ? "blocked" : "pending");
+      if (!firebaseState.user) return;
+      const previousAssigned = JSON.stringify(firebaseState.profile?.assignedHomeIds || {});
+      firebaseState.profile = profile;
+      if (profile.approved !== true || profile.blocked === true) {
+        if (profile.blocked !== true) {
+          try { localStorage.setItem("etkinlik-takip-pending-registration-v1", JSON.stringify({ email: firebaseState.user.email || "", displayName: profile.displayName || "" })); } catch {}
+        }
+        await firebaseState.auth.signOut();
+        redirectToLogin(profile.blocked === true ? "blocked" : "pending");
+        return;
+      }
+      if (JSON.stringify(profile.assignedHomeIds || {}) !== previousAssigned) await hydrateFromFirebase();
     }, (error) => console.warn("Kullanıcı izin durumu dinlenemedi:", error));
   }
 }
@@ -397,6 +425,26 @@ function configuredAdminEmail() {
 function isAdminUser(user = firebaseState.user) {
   const email = String(user?.email || "").trim().toLocaleLowerCase("tr-TR");
   return firebaseState.role === "admin" || (email && configuredAdminEmail() && email === configuredAdminEmail());
+}
+
+function getAssignedHomeIds() {
+  const assigned = firebaseState.profile?.assignedHomeIds;
+  if (!assigned || typeof assigned !== "object" || Array.isArray(assigned)) return new Set();
+  return new Set(Object.entries(assigned).filter(([, value]) => value === true).map(([id]) => String(id)));
+}
+
+function getAccessibleHomes() {
+  if (!firebaseState.enabled || isAdminUser()) return [...homes];
+  const assignedIds = getAssignedHomeIds();
+  const assignedNames = Array.isArray(firebaseState.profile?.assignedHomes)
+    ? new Set(firebaseState.profile.assignedHomes.map((home) => String(home).trim()))
+    : new Set();
+  return homes.filter((home) => (homeIds[home] && assignedIds.has(String(homeIds[home]))) || assignedNames.has(home));
+}
+
+function getAccessibleRecords() {
+  const accessibleNames = new Set(getAccessibleHomes());
+  return records.filter((record) => accessibleNames.has(record.home));
 }
 
 function applyRoleUI() {
@@ -423,7 +471,7 @@ async function loadFirebaseUserProfile(user) {
     } else if (!configuredAdmin) {
       // Repair an Auth account created before its profile write completed.
       // The self-create rule only permits this safe, unapproved profile.
-      firebaseState.profile = { email: user.email || "", role: "responsible", approved: false };
+      firebaseState.profile = { email: user.email || "", role: "responsible", approved: false, assignedHomeIds: {} };
       await firebaseState.database.ref(`users/${firebaseSafeKey(user.uid)}`).set({
         email: user.email || "",
         role: "responsible",
@@ -468,10 +516,14 @@ function initFirebase() {
       }
       await loadFirebaseUserProfile(user);
       if (!isAdminUser(user) && (firebaseState.profile?.approved !== true || firebaseState.profile?.blocked === true)) {
+        if (firebaseState.profile?.blocked !== true) {
+          try { localStorage.setItem("etkinlik-takip-pending-registration-v1", JSON.stringify({ email: user.email || "", displayName: firebaseState.profile?.displayName || "" })); } catch {}
+        }
         await firebaseState.auth.signOut();
         redirectToLogin(firebaseState.profile?.blocked === true ? "blocked" : "pending");
         return;
       }
+      try { localStorage.removeItem("etkinlik-takip-pending-registration-v1"); } catch {}
       document.body.classList.remove("app-pending");
       await hydrateFromFirebase();
       bindFirebaseRealtime();
@@ -483,12 +535,14 @@ function initFirebase() {
 }
 
 function getReportHomes() {
-  return [...new Set([...homes, ...records.map((record) => record.home)])].sort((a, b) => a.localeCompare(b, "tr"));
+  const accessibleHomes = getAccessibleHomes();
+  const accessibleRecords = getAccessibleRecords();
+  return [...new Set([...accessibleHomes, ...accessibleRecords.map((record) => record.home)])].sort((a, b) => a.localeCompare(b, "tr"));
 }
 
 function populateHomeSelects() {
   const formHomeSelect = $("#form-home-select");
-  if (formHomeSelect) formHomeSelect.innerHTML = `<option value="" selected disabled>Seçiniz</option>${homes.map((home) => `<option value="${escapeHTML(home)}">${escapeHTML(home)}</option>`).join("")}`;
+  if (formHomeSelect) formHomeSelect.innerHTML = `<option value="" selected disabled>Seçiniz</option>${getAccessibleHomes().map((home) => `<option value="${escapeHTML(home)}">${escapeHTML(home)}</option>`).join("")}`;
   const reportHomeFilter = $("#report-home-filter");
   if (!reportHomeFilter) return;
   const selectedReportHome = reportHomeFilter.value || "all";
@@ -502,7 +556,7 @@ function escapeHTML(value = "") {
 
 function getMonthRecords() {
   const current = new Date();
-  return records.filter((record) => {
+  return getAccessibleRecords().filter((record) => {
     const recordDate = parseDate(record.date);
     return recordDate.getMonth() === current.getMonth() && recordDate.getFullYear() === current.getFullYear();
   });
@@ -526,7 +580,7 @@ function renderStats() {
     return segment;
   });
   $("#stat-events").textContent = monthly.length;
-  $("#stat-homes").textContent = homes.length;
+  $("#stat-homes").textContent = getAccessibleHomes().length;
   showRingCategory(monthlyRingSegments[0] || null);
   $("#top-type-ring").style.background = monthly.length ? `conic-gradient(${monthlyRingSegments.map((segment) => `${segment.color} ${segment.start}deg ${segment.end}deg`).join(",")})` : "var(--mint-pale)";
   $("#top-type-ring").setAttribute("aria-label", `Bu ay etkinlik türü dağılımı: ${breakdown}`);
@@ -592,7 +646,7 @@ function renderMonthlyDistribution() {
 function filteredRecordsForTable() {
   const query = $("#record-search").value.trim().toLocaleLowerCase("tr-TR");
   const type = $("#record-type-filter").value;
-  return [...records]
+  return [...getAccessibleRecords()]
     .filter((record) => type === "all" || record.type === type)
     .filter((record) => !query || [record.home, record.eventName, record.location, record.type].some((value) => String(value || "").toLocaleLowerCase("tr-TR").includes(query)))
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -614,15 +668,17 @@ function renderHomes() {
   const list = $("#homes-list");
   if (!list) return;
   const homesTotal = $("#homes-total-count");
-  if (homesTotal) homesTotal.textContent = String(homes.length);
-  if (!homes.length) {
-    list.innerHTML = `<div class="empty-state"><strong>Henüz çocuk evi eklenmedi.</strong><p>Etkinlik kaydı oluşturmak için önce bir çocuk evi ekleyin.</p></div>`;
+  const visibleHomes = getAccessibleHomes();
+  if (homesTotal) homesTotal.textContent = String(visibleHomes.length);
+  if (!visibleHomes.length) {
+    const adminMessage = !firebaseState.enabled || isAdminUser();
+    list.innerHTML = `<div class="empty-state"><strong>${adminMessage ? "Henüz çocuk evi eklenmedi." : "Henüz size çocuk evi atanmadı."}</strong><p>${adminMessage ? "Etkinlik kaydı oluşturmak için önce bir çocuk evi ekleyin." : "Yönetici size bir çocuk evi atadığında burada görünecek."}</p></div>`;
     return;
   }
   const canManageHomes = !firebaseState.enabled || isAdminUser();
   const unnamedResponsible = "Sorumlu adı belirtilmedi";
   const groups = new Map();
-  homes.forEach((home) => {
+  visibleHomes.forEach((home) => {
     const responsible = String(homeResponsibles[home] || unnamedResponsible).trim().replace(/\s+/g, " ") || unnamedResponsible;
     if (!groups.has(responsible)) groups.set(responsible, []);
     groups.get(responsible).push(home);
@@ -635,7 +691,7 @@ function renderHomes() {
   });
 
   const renderHomeCard = (home) => {
-    const eventCount = records.filter((record) => record.home === home).length;
+    const eventCount = getAccessibleRecords().filter((record) => record.home === home).length;
     const isSelected = selectedHomeDetail === home;
     const adminActions = canManageHomes
       ? `<button class="row-action row-edit" type="button" data-rename-home="${escapeHTML(home)}">Adını değiştir</button><button class="row-action row-delete" type="button" data-delete-home="${escapeHTML(home)}">Sil</button>`
@@ -681,7 +737,7 @@ function getReportRecords() {
   const type = $("#report-type-filter").value;
   const start = $("#report-start-date").value;
   const end = $("#report-end-date").value;
-  return filterRecordsByPeriod(records, period, start, end)
+  return filterRecordsByPeriod(getAccessibleRecords(), period, start, end)
     .filter((record) => (home === "all" || record.home === home) && (type === "all" || record.type === type));
 }
 
@@ -691,7 +747,7 @@ function getHomeDetailRecords() {
   const type = $("#home-detail-type").value;
   const start = $("#home-detail-start-date").value;
   const end = $("#home-detail-end-date").value;
-  return filterRecordsByPeriod(records.filter((record) => record.home === selectedHomeDetail), period, start, end)
+  return filterRecordsByPeriod(getAccessibleRecords().filter((record) => record.home === selectedHomeDetail), period, start, end)
     .filter((record) => type === "all" || record.type === type);
 }
 
@@ -706,7 +762,7 @@ function updateHomeDetailDateInputs() {
 }
 
 function openHomeDetail(home) {
-  if (!homes.includes(home)) return;
+  if (!getAccessibleHomes().includes(home)) return;
   selectedHomeDetail = home;
   $("#home-detail-period").value = "all";
   $("#home-detail-type").value = "all";
@@ -727,14 +783,14 @@ function closeHomeDetail() {
 function renderHomeDetail() {
   const section = $("#home-detail");
   if (!section) return;
-  if (!selectedHomeDetail || !homes.includes(selectedHomeDetail)) {
+  if (!selectedHomeDetail || !getAccessibleHomes().includes(selectedHomeDetail)) {
     section.hidden = true;
     return;
   }
 
   section.hidden = false;
   $("#home-detail-name").textContent = selectedHomeDetail;
-  $("#home-detail-home-count").textContent = `${records.filter((record) => record.home === selectedHomeDetail).length} toplam etkinlik kaydı`;
+  $("#home-detail-home-count").textContent = `${getAccessibleRecords().filter((record) => record.home === selectedHomeDetail).length} toplam etkinlik kaydı`;
   const profile = homeProfiles[selectedHomeDetail];
   const photo = $("#home-detail-photo");
   const placeholder = $("#home-detail-photo-placeholder");
@@ -934,6 +990,10 @@ function handleEventForm(event) {
     error.textContent = "Lütfen zorunlu alanları tamamlayın.";
     return;
   }
+  if (!getAccessibleHomes().includes(data.home)) {
+    error.textContent = "Bu çocuk evine etkinlik kayıt yetkiniz yok.";
+    return;
+  }
   if (data.startTime && data.endTime && data.endTime < data.startTime) {
     error.textContent = "Bitiş saati başlangıç saatinden önce olamaz.";
     return;
@@ -941,6 +1001,7 @@ function handleEventForm(event) {
   const recordData = {
     date: data.date,
     home: data.home,
+    homeId: homeIds[data.home] || "",
     type: data.type,
     eventName: data.eventName.trim(),
     location: data.location.trim(),
@@ -1263,26 +1324,12 @@ function exportHomeExcel() {
 }
 
 function initTheme() {
-  let savedTheme = null;
-  try {
-    savedTheme = localStorage.getItem("etkinlik-takip-theme");
-  } catch {
-    savedTheme = null;
-  }
+  document.body.classList.add("dark-theme");
+  try { localStorage.setItem("etkinlik-takip-theme", "dark"); } catch {}
   const themeMeta = $("#theme-color-meta");
-  if (savedTheme === "dark") document.body.classList.add("dark-theme");
-  themeMeta.content = savedTheme === "dark" ? "#12211f" : "#f8f8f4";
-  $("#theme-toggle").addEventListener("click", () => {
-    const isDark = document.body.classList.toggle("dark-theme");
-    try {
-      localStorage.setItem("etkinlik-takip-theme", isDark ? "dark" : "light");
-    } catch {
-      showToast("Tema tercihi bu tarayıcıda saklanamadı.");
-    }
-    themeMeta.content = isDark ? "#12211f" : "#f8f8f4";
-    $("#theme-toggle").setAttribute("aria-label", isDark ? "Açık temaya geç" : "Koyu temaya geç");
-  });
-  $("#theme-toggle").setAttribute("aria-label", savedTheme === "dark" ? "Açık temaya geç" : "Koyu temaya geç");
+  if (themeMeta) themeMeta.content = "#12211f";
+  const toggle = $("#theme-toggle");
+  if (toggle) toggle.hidden = true;
 }
 
 function initPWA() {
