@@ -44,6 +44,13 @@
       }
       const profile = snapshot.val() || {};
       const displayName = String(profile.displayName || user.displayName || "").trim();
+      if (profile.role === "admin") {
+        stopApprovalWatch();
+        pendingRegistration = false;
+        clearPendingRegistration();
+        location.replace("./");
+        return;
+      }
       if (profile.blocked === true) {
         stopApprovalWatch();
         pendingRegistration = false;
@@ -253,6 +260,11 @@
       try {
         const snapshot = await database.ref(`users/${encodeURIComponent(user.uid)}`).once("value");
         const profile = snapshot.val() || {};
+        if (profile.role === "admin") {
+          clearPendingRegistration();
+          location.replace("./");
+          return;
+        }
         if (profile.blocked === true) {
           clearPendingRegistration();
           await auth.signOut();
