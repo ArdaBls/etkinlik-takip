@@ -389,9 +389,6 @@ function initFirebase() {
     firebaseState.auth = firebase.auth(firebaseApp);
     firebaseState.database = firebase.database(firebaseApp);
     firebaseState.enabled = true;
-    $("#auth-login-mode").addEventListener("click", () => setAuthMode("login"));
-    $("#auth-register-mode").addEventListener("click", () => setAuthMode("register"));
-    $("#auth-form").addEventListener("submit", handleAuthSubmit);
     $("#auth-logout").addEventListener("click", () => firebaseState.auth.signOut());
     firebaseState.auth.onAuthStateChanged(async (user) => {
       firebaseState.user = user;
@@ -1177,6 +1174,9 @@ function init() {
   initFirebase();
   initTheme();
   initPWA();
+  $("#auth-login-mode").addEventListener("click", () => setAuthMode("login"));
+  $("#auth-register-mode").addEventListener("click", () => setAuthMode("register"));
+  $("#auth-form").addEventListener("submit", handleAuthSubmit);
   $("#event-form [name=date]").value = todayISO();
   updateCustomDateInputs();
   updateEverything();
