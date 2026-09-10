@@ -1,0 +1,26 @@
+# Firebase CLI ve yerel çalışma dosyaları
+.firebase/
+firebase-debug.log
+firebase-debug.log*
+.firebaserc
+
+# Firebase Admin SDK / servis hesabı anahtarları
+firebase-adminsdk*.json
+*-firebase-adminsdk-*.json
+serviceAccount*.json
+service-account*.json
+
+# Ortam değişkenleri ve yerel sırlar
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# İşletim sistemi ve editör dosyaları
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Not: firebase-config.js GitHub Pages için gereklidir. Web API anahtarı
+# gizli bir servis hesabı anahtarı değildir; erişim Firebase Rules/Auth ile korunur.
