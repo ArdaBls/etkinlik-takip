@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" id="theme-color-meta" content="#f8f8f4" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Etkinlik Takip" />
+    <meta
+      name="description"
+      content="Çocuk evleri için kişi bilgisi içermeyen etkinlik takip sistemi."
+    />
+    <title>Etkinlik Takip | Çocuk Evleri</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="page-glow glow-one" aria-hidden="true"></div>
+    <div class="page-glow glow-two" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="#overview" aria-label="Etkinlik Takip ana sayfa">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+            <path d="M12 21c5-3.1 8-6.6 8-11V5.8L12 3 4 5.8V10c0 4.4 3 7.9 8 11Z" />
+            <path d="m8.5 12 2.2 2.2 4.8-5" />
+          </svg>
+        </span>
+        <span>Etkinlik <strong>Takip</strong></span>
+      </a>
+
+      <nav class="main-nav" id="main-nav" aria-label="Ana menü">
+        <a class="active" href="#records">Kayıtlar</a>
+        <a href="#homes">Çocuk evleri</a>
+        <a href="#reports">Raporlar</a>
+      </nav>
+
+      <div class="header-actions">
+        <button class="icon-button mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-label="Menüyü aç" aria-expanded="false" aria-controls="main-nav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
+        <button class="button button-ghost button-small install-button" id="install-app" type="button" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+          Uygulamayı yükle
+        </button>
+        <button class="icon-button" id="theme-toggle" type="button" aria-label="Koyu temaya geç">
+          <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M20.4 15.1A8.4 8.4 0 0 1 8.9 3.6 8.4 8.4 0 1 0 20.4 15.1Z" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="workspace-heading section-shell" id="overview">
+        <div>
+          <h1>Etkinlik kayıtları</h1>
+          <p>Çocuk evlerinin etkinlik bilgilerini yönetin.</p>
+        </div>
+      </section>
+
+      <section class="stats-grid section-shell" aria-label="Etkinlik özeti">
+        <article class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg></div>
+          <div><p>Bu ayki etkinlik</p><strong id="stat-events">0</strong><span>kayıt</span></div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-icon coral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 21V7l8-4 8 4v14M2 21h20M8 10h2M14 10h2M8 14h2M14 14h2"/></svg></div>
+          <div><p>Çocuk evi</p><strong id="stat-homes">0</strong><span>kayıtlı ev</span></div>
+        </article>
+        <article class="stat-card stat-card-top-type" id="top-type-card">
+          <div class="stat-icon mint stat-ring" id="top-type-ring" role="img" tabindex="0" aria-label="Bu ay etkinlik türü dağılımı">
+            <span id="stat-top-percent">0%</span>
+          </div>
+          <div><p>Bu ay en çok gidilen</p><strong class="stat-type-name" id="stat-top-type">—</strong><span id="stat-top-detail">Henüz kayıt yok</span></div>
+        </article>
+      </section>
+
+      <section class="monthly-distribution section-shell" aria-labelledby="monthly-distribution-title">
+        <div class="distribution-heading">
+          <div><h2 id="monthly-distribution-title">Aylık etkinlik dağılımı</h2><p>Bu ay hangi etkinlik türüne kaç kez gidildiği.</p></div>
+          <span id="monthly-distribution-total">0 etkinlik</span>
+        </div>
+        <div class="monthly-type-bars" id="monthly-type-bars"></div>
+      </section>
+
+      <section class="records-section section-shell" id="records">
+        <div class="section-heading-row">
+          <div><h2>Tüm kayıtlar</h2><p>Eklenen etkinlikleri arayın, filtreleyin veya düzenleyin.</p></div>
+          <button class="button button-primary button-small" id="open-record-form-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg> Yeni Etkinlik Kaydı</button>
+        </div>
+        <div class="table-controls">
+          <label class="search-field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input id="record-search" type="search" aria-label="Etkinlik kayıtlarında ara" placeholder="Etkinlik, çocuk evi veya yer ara" /></label>
+          <select id="record-type-filter" aria-label="Etkinlik türüne göre filtrele"><option value="all">Tüm etkinlik türleri</option><option value="Spor">Spor</option><option value="Kültür & Sanat">Kültür & Sanat</option><option value="Gezi">Gezi</option><option value="Eğitim">Eğitim</option><option value="Diğer">Diğer</option></select>
+          <button class="filter-button" id="reset-record-filters" type="button">Filtreleri temizle</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Tarih</th><th scope="col">Çocuk evi</th><th scope="col">Etkinlik</th><th scope="col">Yer</th><th scope="col">Saat</th><th scope="col" aria-label="İşlemler"></th></tr></thead>
+            <tbody id="records-table-body"></tbody>
+          </table>
+          <div class="empty-state table-empty" id="records-empty" hidden>
+            <span>⌕</span><strong>Bu filtrede kayıt bulunamadı.</strong><p>Arama veya filtreleri değiştirip tekrar deneyin.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="homes-section section-shell" id="homes">
+        <div class="section-heading-row">
+          <div><h2>Çocuk evleri</h2><p>Etkinlik kaydı oluştururken kullanılacak çocuk evlerini yönetin.</p></div>
+        </div>
+        <form class="home-add-form" id="home-add-form">
+          <label class="search-field"><input id="new-home-name" type="text" maxlength="80" placeholder="Yeni çocuk evinin adı" aria-label="Yeni çocuk evinin adı" required /></label>
+          <button class="button button-primary button-small" type="submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
+            Çocuk evi ekle
+          </button>
+        </form>
+        <div class="homes-list" id="homes-list"></div>
+      </section>
+
+      <section class="home-detail section-shell" id="home-detail" aria-labelledby="home-detail-name" hidden>
+        <div class="section-heading-row home-detail-heading">
+          <div>
+            <p class="section-kicker">Çocuk evi ayrıntısı</p>
+            <h2 id="home-detail-name">Çocuk evi</h2>
+            <p id="home-detail-home-count">0 toplam etkinlik kaydı</p>
+          </div>
+          <button class="button button-ghost button-small" id="close-home-detail" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+            Çocuk evleri listesine dön
+          </button>
+        </div>
+
+        <div class="home-detail-grid">
+          <aside class="home-profile-card" aria-labelledby="home-profile-title">
+            <div class="home-photo-frame">
+              <img id="home-detail-photo" alt="" hidden />
+              <div class="home-photo-placeholder" id="home-detail-photo-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20c.7-3.4 2.8-5.2 6.5-5.2s5.8 1.8 6.5 5.2" /></svg>
+                <span>Fotoğraf eklenmedi</span>
+              </div>
+            </div>
+            <div class="home-profile-copy">
+              <p class="section-kicker">Ev sorumlusu</p>
+              <h3 id="home-profile-title">Görevli fotoğrafı</h3>
+              <p>Bu fotoğraf yalnızca seçili çocuk evinin ayrıntı ekranında gösterilir.</p>
+            </div>
+            <input id="home-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+            <button class="button button-ghost home-photo-button" id="home-photo-button" type="button">Fotoğraf ekle</button>
+            <small class="home-photo-note">PNG, JPG veya WebP · En fazla 3 MB, otomatik sıkıştırılır</small>
+          </aside>
+
+          <section class="home-detail-results" aria-labelledby="home-detail-results-title">
+            <div class="home-detail-results-heading">
+              <div>
+                <p class="section-kicker">Etkinlik geçmişi</p>
+                <h3 id="home-detail-results-title">Gidilen etkinlikler</h3>
+                <p class="home-detail-summary" id="home-detail-summary">0 kayıt gösteriliyor</p>
+              </div>
+              <button class="button button-primary button-small" id="export-home-excel" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+                Ev Excel'i indir
+              </button>
+            </div>
+
+            <div class="home-detail-filters" aria-label="Çocuk evi etkinlik filtreleri">
+              <label><span>Dönem</span><select id="home-detail-period"><option value="all">Tüm zamanlar</option><option value="today">Bugün</option><option value="week">Son 7 gün</option><option value="month">Bu ay</option><option value="year">Bu yıl</option><option value="custom">Özel tarih aralığı</option></select></label>
+              <label><span>Başlangıç tarihi</span><input id="home-detail-start-date" type="date" disabled /></label>
+              <label><span>Bitiş tarihi</span><input id="home-detail-end-date" type="date" disabled /></label>
+              <label><span>Etkinlik türü</span><select id="home-detail-type"><option value="all">Tüm türler</option><option value="Spor">Spor</option><option value="Kültür &amp; Sanat">Kültür &amp; Sanat</option><option value="Gezi">Gezi</option><option value="Eğitim">Eğitim</option><option value="Diğer">Diğer</option></select></label>
+            </div>
+
+            <div class="table-wrap home-detail-table-wrap">
+              <table class="home-detail-table">
+                <thead><tr><th scope="col">Tarih</th><th scope="col">Etkinlik</th><th scope="col">Yer</th><th scope="col">Saat</th><th scope="col" aria-label="İşlemler"></th></tr></thead>
+                <tbody id="home-detail-table-body"></tbody>
+              </table>
+              <div class="empty-state" id="home-detail-empty" hidden>
+                <span>⌕</span><strong>Bu filtrede etkinlik bulunamadı.</strong><p>Tarih veya etkinlik türü filtresini değiştirip tekrar deneyin.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="reports-section section-shell" id="reports">
+        <div class="section-heading-row report-title-row">
+          <div><h2>Etkinlik raporları</h2><p>İhtiyacınız olan dönemi seçerek Excel dökümünü oluşturun.</p></div>
+          <div class="report-actions">
+            <button class="button button-primary button-small" id="export-excel" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Excel indir</button>
+          </div>
+        </div>
+
+        <div class="report-filter-card">
+          <div class="filter-heading"><span class="filter-heading-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16l-6.2 7.1V18l-3.6 2v-7.9Z"/></svg></span><strong>Rapor filtreleri</strong></div>
+          <div class="report-filters">
+            <label><span>Dönem</span><select id="report-period"><option value="all">Tüm zamanlar</option><option value="today">Bugün</option><option value="week">Son 7 gün</option><option value="month">Bu ay</option><option value="year">Bu yıl</option><option value="custom">Özel tarih aralığı</option></select></label>
+            <label><span>Başlangıç tarihi</span><input id="report-start-date" type="date" /></label>
+            <label><span>Bitiş tarihi</span><input id="report-end-date" type="date" /></label>
+            <label><span>Çocuk evi</span><select id="report-home-filter"><option value="all">Tüm çocuk evleri</option></select></label>
+            <label><span>Etkinlik türü</span><select id="report-type-filter"><option value="all">Tüm türler</option><option value="Spor">Spor</option><option value="Kültür & Sanat">Kültür & Sanat</option><option value="Gezi">Gezi</option><option value="Eğitim">Eğitim</option><option value="Diğer">Diğer</option></select></label>
+          </div>
+        </div>
+
+        <div class="report-summary">
+          <div class="summary-item"><span>Etkinlik sayısı</span><strong id="report-event-count">0</strong></div>
+          <div class="summary-item"><span>Çocuk evi</span><strong id="report-home-count">0</strong></div>
+          <div class="summary-item"><span>Etkinlik türü</span><strong id="report-type-count">0</strong></div>
+          <div class="summary-item"><span>Etkinlik günü</span><strong id="report-day-count">0</strong></div>
+        </div>
+        <p class="report-detail" id="report-detail">Filtrelere uyan kayıt bulunmuyor.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer section-shell"><span>Etkinlik Takip</span><span>Yerel taslak</span></footer>
+
+    <div class="modal-backdrop" id="modal-backdrop" hidden></div>
+    <section class="record-modal" id="record-modal" aria-modal="true" aria-labelledby="record-modal-title" aria-describedby="record-modal-description" role="dialog" hidden>
+      <div class="modal-header"><div><h2 id="record-modal-title">Etkinlik kaydı ekle</h2><p id="record-modal-description">Etkinlik ve katılacak çocuk evini seçin.</p></div><button class="icon-button modal-close" type="button" aria-label="Formu kapat">×</button></div>
+      <form id="event-form" novalidate>
+        <div class="form-grid two-columns">
+          <label><span>Tarih <b>*</b></span><input name="date" type="date" required /></label>
+          <label><span>Çocuk evi <b>*</b></span><select name="home" required id="form-home-select"></select></label>
+          <label><span>Etkinlik türü <b>*</b></span><select name="type" required><option value="" selected disabled>Seçiniz</option><option>Spor</option><option>Kültür & Sanat</option><option>Gezi</option><option>Eğitim</option><option>Diğer</option></select></label>
+          <label><span>Etkinlik adı <b>*</b></span><input name="eventName" type="text" maxlength="90" placeholder="Örn. Basketbol antrenmanı" required /></label>
+          <label class="full-width"><span>Etkinlik yeri</span><input name="location" type="text" maxlength="100" placeholder="Örn. İl spor salonu" /></label>
+          <label><span>Başlangıç saati</span><input name="startTime" type="time" /></label>
+          <label><span>Bitiş saati</span><input name="endTime" type="time" /></label>
+        </div>
+        <label class="form-notes"><span>Açıklama</span><textarea name="notes" rows="3" maxlength="400" placeholder="İsteğe bağlı kısa açıklama"></textarea><small>Kişiyi tanımlayabilecek bilgi girmeyin.</small></label>
+        <p class="form-error" id="form-error" role="alert"></p>
+        <div class="form-actions"><button class="button button-ghost modal-close" type="button">Vazgeç</button><button class="button button-primary" id="record-submit-button" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5 9.5 17 19 7.5" /></svg> <span>Kaydı kaydet</span></button></div>
+      </form>
+    </section>
+
+    <section class="record-modal home-modal" id="home-modal" aria-modal="true" aria-labelledby="home-modal-title" aria-describedby="home-modal-description" role="dialog" hidden>
+      <div class="modal-header">
+        <div><h2 id="home-modal-title">Çocuk evini düzenle</h2><p id="home-modal-description"></p></div>
+        <button class="icon-button modal-close" type="button" aria-label="Pencereyi kapat">×</button>
+      </div>
+      <form id="home-modal-form" novalidate>
+        <label class="home-name-field"><span>Çocuk evinin adı</span><input id="home-modal-name" type="text" maxlength="80" /></label>
+        <div class="delete-notice" id="home-delete-notice" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01M10.3 3.8 2.4 18a2 2 0 0 0 1.8 3h15.6a2 2 0 0 0 1.8-3L13.7 3.8a2 2 0 0 0-3.4 0Z"/></svg>
+          <p id="home-delete-message"></p>
+        </div>
+        <p class="form-error" id="home-modal-error" role="alert"></p>
+        <div class="form-actions"><button class="button button-ghost modal-close" type="button">Vazgeç</button><button class="button button-primary" id="home-modal-submit" type="submit">Kaydet</button></div>
+      </form>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
