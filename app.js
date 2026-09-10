@@ -200,6 +200,7 @@ const firebaseState = {
   profile: null,
   role: "responsible",
   userDirectory: [],
+  auditLogs: [],
   hydrating: false,
   syncTimer: null,
   refreshTimer: null,
@@ -383,6 +384,7 @@ function bindFirebaseRealtime() {
   });
   if (isAdminUser()) {
     firebaseState.database.ref("users").on("value", () => hydrateAdminUsers(), (error) => console.warn("Kullanıcı izinleri canlı dinleyicisi başarısız:", error));
+    firebaseState.database.ref("auditLogs").on("value", () => hydrateAdminAuditLogs(), (error) => console.warn("Değişiklik günlüğü canlı dinleyicisi başarısız:", error));
   } else if (firebaseState.user) {
     firebaseState.database.ref(`users/${firebaseSafeKey(firebaseState.user.uid)}`).on("value", async (snapshot) => {
       const profile = snapshot.val() || {};
@@ -424,6 +426,27 @@ async function hydrateAdminUsers() {
   renderAdminUsers();
 }
 
+async function hydrateAdminAuditLogs() {
+  if (!firebaseState.enabled || !firebaseState.database || !firebaseState.user || !isAdminUser()) {
+    firebaseState.auditLogs = [];
+    renderAuditLogs();
+    return;
+  }
+  try {
+    const snapshot = await firebaseState.database.ref("auditLogs").limitToLast(40).once("value");
+    const logs = [];
+    snapshot.forEach((child) => {
+      const log = child.val();
+      if (log && typeof log === "object") logs.push({ ...log, key: child.key });
+    });
+    firebaseState.auditLogs = logs.sort((first, second) => Number(second.timestamp || 0) - Number(first.timestamp || 0));
+  } catch (error) {
+    console.warn("Değişiklik günlüğü okunamadı:", error);
+    firebaseState.auditLogs = [];
+  }
+  renderAuditLogs();
+}
+
 function configuredAdminEmail() {
   return String(window.ETKINLIK_FIREBASE_CONFIG?.adminEmail || "").trim().toLocaleLowerCase("tr-TR");
 }
@@ -442,6 +465,7 @@ function applyRoleUI() {
   renderHomes();
   renderHomeDetail();
   renderAdminUsers();
+  renderAuditLogs();
 }
 
 async function loadFirebaseUserProfile(user) {
@@ -507,6 +531,7 @@ function initFirebase() {
       }
       document.body.classList.remove("app-pending");
       await hydrateAdminUsers();
+      await hydrateAdminAuditLogs();
       await hydrateFromFirebase();
       bindFirebaseRealtime();
     });
@@ -688,6 +713,39 @@ function renderAdminUsers() {
     const statusClass = profile.blocked ? "blocked" : profile.approved ? "approved" : "pending";
     const blockLabel = profile.blocked ? "Engeli kaldır" : "Hesabı engelle";
     return `<article class="user-access-row"><div class="user-access-copy"><strong>${escapeHTML(profile.email)}</strong><span>Kayıt tarihi: ${escapeHTML(created)}</span></div><div class="user-access-actions"><span class="user-access-status ${statusClass}">${status}</span><button class="button button-small ${actionClass}" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-approved="${String(profile.approved)}">${actionLabel}</button><button class="button button-small button-ghost" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-blocked="${String(profile.blocked)}">${blockLabel}</button></div></article>`;
+  }).join("");
+}
+
+function renderAuditLogs() {
+  const list = $("#audit-log-list");
+  if (!list) return;
+  if (!isAdminUser()) {
+    list.innerHTML = "";
+    return;
+  }
+  if (!firebaseState.auditLogs.length) {
+    list.innerHTML = `<div class="empty-state"><strong>Henüz değişiklik günlüğü yok.</strong><p>Yeni işlemler burada görünür.</p></div>`;
+    return;
+  }
+  const labels = {
+    "event.create": "Etkinlik eklendi",
+    "event.update": "Etkinlik güncellendi",
+    "event.delete": "Etkinlik silindi",
+    "home.create": "Çocuk evi eklendi",
+    "home.rename": "Çocuk evi adı değiştirildi",
+    "home.delete": "Çocuk evi silindi",
+    "home.photo.update": "Sorumlu fotoğrafı güncellendi",
+    "user.approve": "Kullanıcıya izin verildi",
+    "user.revoke": "Kullanıcı izni geri alındı",
+    "user.block": "Kullanıcı engellendi",
+    "user.unblock": "Kullanıcı engeli kaldırıldı"
+  };
+  list.innerHTML = firebaseState.auditLogs.map((log) => {
+    const detail = log.details?.from && log.details?.to
+      ? `${log.details.from} → ${log.details.to}`
+      : log.details?.home || log.details?.email || log.target || "—";
+    const date = log.timestamp ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(log.timestamp)) : "Tarih belirtilmedi";
+    return `<div class="audit-log-row"><div><strong>${escapeHTML(labels[log.action] || log.action || "İşlem")}</strong><span>${escapeHTML(String(detail))}</span></div><time datetime="${log.timestamp ? new Date(log.timestamp).toISOString() : ""}">${escapeHTML(date)}</time></div>`;
   }).join("");
 }
 
