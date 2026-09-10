@@ -51,6 +51,7 @@
           Uygulamayı yükle
         </button>
         <a class="button button-ghost button-small admin-users-link" id="admin-users-link" data-admin-only hidden href="./admin-users.html">Kullanıcı izinleri</a>
+        <button class="profile-avatar-button" id="profile-settings-button" type="button" hidden aria-label="Profil ayarlarını aç"><span class="profile-avatar" id="profile-avatar"><span>EV</span></span><span class="profile-avatar-name" id="profile-avatar-name">Profil</span></button>
         <button class="button button-ghost button-small auth-logout" id="auth-logout" type="button" hidden>Çıkış</button>
         <button class="icon-button" id="theme-toggle" type="button" aria-label="Koyu temaya geç">
           <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -184,12 +185,17 @@
       </form>
     </section>
 
+    <section class="record-modal profile-modal" id="profile-modal" aria-modal="true" aria-labelledby="profile-modal-title" role="dialog" hidden>
+      <div class="modal-header"><div><h2 id="profile-modal-title">Profil ayarları</h2><p>Ev sorumlusu fotoğrafınızı güncel tutun.</p></div><button class="icon-button modal-close" type="button" aria-label="Profil penceresini kapat">×</button></div>
+      <div class="profile-settings-body"><div class="profile-photo-editor"><div class="profile-photo-preview"><img id="profile-photo-preview" alt="Profil fotoğrafı" hidden /><span id="profile-photo-placeholder">EV</span></div><div class="profile-photo-actions"><input id="profile-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden /><button class="button button-primary" id="profile-photo-button" type="button">Fotoğraf seç</button><button class="button button-ghost" id="profile-photo-remove" type="button" hidden>Fotoğrafı kaldır</button><small>PNG, JPG veya WebP · En fazla 3 MB</small></div></div><p class="profile-settings-note">Bu fotoğraf, sorumlu olduğunuz çocuk evlerinin görevli fotoğrafında gösterilir.</p></div>
+    </section>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=15"></script>
   </body>
 </html>

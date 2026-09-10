@@ -183,6 +183,7 @@ let homes = getHomes();
 let homeIds = getHomeIds();
 let homeProfiles = getHomeProfiles();
 let homeResponsibles = getHomeResponsibles();
+const responsibleProfiles = new Map();
 let editingRecordId = null;
 let homeModalMode = null;
 let selectedHomeName = null;
@@ -405,6 +406,8 @@ function bindFirebaseRealtime() {
       if (!firebaseState.user) return;
       const previousAssigned = JSON.stringify(firebaseState.profile?.assignedHomeIds || {});
       firebaseState.profile = profile;
+      responsibleProfiles.set(firebaseState.user.uid, { ...profile, uid: firebaseState.user.uid });
+      renderCurrentUserProfile();
       if (profile.approved !== true || profile.blocked === true) {
         if (profile.blocked !== true) {
           try { localStorage.setItem("etkinlik-takip-pending-registration-v1", JSON.stringify({ email: firebaseState.user.email || "", displayName: profile.displayName || "" })); } catch {}
@@ -447,11 +450,130 @@ function getAccessibleRecords() {
   return records.filter((record) => accessibleNames.has(record.home));
 }
 
+function getProfileDisplayName(profile = {}) {
+  return String(profile.displayName || `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || profile.email || "").trim();
+}
+
+function getInitials(value = "") {
+  const parts = String(value).trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2) || "EV").toLocaleUpperCase("tr-TR");
+}
+
+function getResponsibleProfileForHome(home) {
+  const homeId = String(homeIds[home] || "");
+  const matching = [...responsibleProfiles.values()]
+    .filter((profile) => homeId && profile.assignedHomeIds && profile.assignedHomeIds[homeId] === true)
+    .sort((first, second) => getProfileDisplayName(first).localeCompare(getProfileDisplayName(second), "tr"));
+  if (matching[0]) return matching[0];
+  const responsibleName = String(homeResponsibles[home] || "").trim().toLocaleLowerCase("tr-TR");
+  if (responsibleName) return [...responsibleProfiles.values()].find((profile) => getProfileDisplayName(profile).toLocaleLowerCase("tr-TR") === responsibleName) || null;
+  return null;
+}
+
+function renderCurrentUserProfile() {
+  const profile = firebaseState.profile || {};
+  const displayName = getProfileDisplayName(profile) || getProfileDisplayName(firebaseState.user || {});
+  const avatar = $("#profile-avatar");
+  const name = $("#profile-avatar-name");
+  if (name) name.textContent = displayName || "Profil";
+  if (avatar) {
+    const photo = String(profile.photoDataUrl || "");
+    avatar.innerHTML = PHOTO_DATA_URL_PATTERN.test(photo) ? `<img src="${photo}" alt="${escapeHTML(displayName)}" />` : `<span>${escapeHTML(getInitials(displayName))}</span>`;
+  }
+  const preview = $("#profile-photo-preview");
+  const placeholder = $("#profile-photo-placeholder");
+  const removeButton = $("#profile-photo-remove");
+  if (preview && placeholder) {
+    const photo = String(profile.photoDataUrl || "");
+    preview.hidden = !PHOTO_DATA_URL_PATTERN.test(photo);
+    placeholder.hidden = preview.hidden;
+    if (!preview.hidden) preview.src = photo;
+    else preview.removeAttribute("src");
+    placeholder.textContent = getInitials(displayName);
+    if (removeButton) removeButton.hidden = preview.hidden;
+  }
+}
+
+async function saveCurrentUserPhoto(photoDataUrl = "") {
+  if (!firebaseState.enabled || !firebaseState.user) {
+    showToast("Fotoğraf kaydetmek için giriş yapmalısınız.");
+    return;
+  }
+  const path = `users/${firebaseSafeKey(firebaseState.user.uid)}/photoDataUrl`;
+  try {
+    if (photoDataUrl) await firebaseState.database.ref(path).set(photoDataUrl);
+    else await firebaseState.database.ref(path).remove();
+    firebaseState.profile = { ...(firebaseState.profile || {}) };
+    if (photoDataUrl) firebaseState.profile.photoDataUrl = photoDataUrl;
+    else delete firebaseState.profile.photoDataUrl;
+    responsibleProfiles.set(firebaseState.user.uid, { ...(responsibleProfiles.get(firebaseState.user.uid) || {}), ...firebaseState.profile, uid: firebaseState.user.uid });
+    renderCurrentUserProfile();
+    renderHomes();
+    renderHomeDetail();
+    showToast(photoDataUrl ? "Profil fotoğrafınız kaydedildi." : "Profil fotoğrafınız kaldırıldı.");
+  } catch (error) {
+    console.warn("Profil fotoğrafı kaydedilemedi:", error);
+    showToast("Profil fotoğrafı kaydedilemedi. Firebase Rules ayarlarını kontrol edin.");
+  }
+}
+
+function handleCurrentUserPhotoChange(event) {
+  const file = event.currentTarget.files?.[0];
+  event.currentTarget.value = "";
+  if (!file) return;
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    showToast("Lütfen PNG, JPG veya WebP formatında bir fotoğraf seçin.");
+    return;
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    showToast("Fotoğraf 3 MB'dan küçük olmalı.");
+    return;
+  }
+  compressPhotoToDataUrl(file).then(saveCurrentUserPhoto).catch((error) => showToast(error.message === "photo-too-large" ? "Fotoğraf sıkıştırılamadı. Daha küçük bir dosya deneyin." : "Fotoğraf okunamadı. Lütfen tekrar deneyin."));
+}
+
+function bindUserProfilesRealtime() {
+  if (!firebaseState.enabled || !firebaseState.database) return;
+  firebaseState.database.ref("users").on("value", (snapshot) => {
+    responsibleProfiles.clear();
+    snapshot.forEach((child) => {
+      const profile = child.val() || {};
+      if (profile.email) responsibleProfiles.set(child.key, { ...profile, uid: child.key });
+    });
+    if (firebaseState.user && firebaseState.profile) {
+      responsibleProfiles.set(firebaseState.user.uid, { ...firebaseState.profile, uid: firebaseState.user.uid });
+    }
+    renderCurrentUserProfile();
+    renderHomes();
+    renderHomeDetail();
+  }, (error) => console.warn("Kullanıcı profilleri okunamadı:", error));
+}
+
+function openProfileModal(trigger = null) {
+  modalTrigger = trigger;
+  renderCurrentUserProfile();
+  $("#modal-backdrop").hidden = false;
+  $("#profile-modal").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function initProfileUI() {
+  const button = $("#profile-settings-button");
+  if (!button) return;
+  button.addEventListener("click", (event) => openProfileModal(event.currentTarget));
+  $("#profile-photo-button")?.addEventListener("click", () => $("#profile-photo-input")?.click());
+  $("#profile-photo-input")?.addEventListener("change", handleCurrentUserPhotoChange);
+  $("#profile-photo-remove")?.addEventListener("click", () => saveCurrentUserPhoto(""));
+  renderCurrentUserProfile();
+}
+
 function applyRoleUI() {
   const admin = isAdminUser();
   $$('[data-admin-only]').forEach((element) => { element.hidden = !admin; });
   const logoutButton = $("#auth-logout");
   if (logoutButton) logoutButton.hidden = !firebaseState.user;
+  const profileButton = $("#profile-settings-button");
+  if (profileButton) profileButton.hidden = !firebaseState.user;
   $("#data-mode").textContent = firebaseState.enabled && firebaseState.user
     ? `Firebase bağlı · ${admin ? "Yönetici" : "Ev sorumlusu"}`
     : "Giriş bekleniyor";
@@ -479,6 +601,7 @@ async function loadFirebaseUserProfile(user) {
         createdAt: firebase.database.ServerValue.TIMESTAMP
       });
     }
+    responsibleProfiles.set(user.uid, { ...(firebaseState.profile || {}), uid: user.uid });
   } catch (error) {
     console.warn("Kullanıcı rolü okunamadı:", error);
   }
@@ -527,6 +650,7 @@ function initFirebase() {
       document.body.classList.remove("app-pending");
       await hydrateFromFirebase();
       bindFirebaseRealtime();
+      bindUserProfilesRealtime();
     });
   } catch (error) {
     console.warn("Firebase başlatılamadı:", error);
@@ -791,14 +915,16 @@ function renderHomeDetail() {
   section.hidden = false;
   $("#home-detail-name").textContent = selectedHomeDetail;
   $("#home-detail-home-count").textContent = `${getAccessibleRecords().filter((record) => record.home === selectedHomeDetail).length} toplam etkinlik kaydı`;
+  const responsibleProfile = getResponsibleProfileForHome(selectedHomeDetail);
   const profile = homeProfiles[selectedHomeDetail];
+  const photoDataUrl = responsibleProfile?.photoDataUrl || profile?.photoDataUrl || "";
   const photo = $("#home-detail-photo");
   const placeholder = $("#home-detail-photo-placeholder");
   const photoButton = $("#home-photo-button");
-  $("#home-profile-title").textContent = homeResponsibles[selectedHomeDetail] || "Sorumlu adı belirtilmedi";
+  $("#home-profile-title").textContent = getProfileDisplayName(responsibleProfile || {}) || homeResponsibles[selectedHomeDetail] || "Sorumlu adı belirtilmedi";
   photoButton.hidden = !(!firebaseState.enabled || isAdminUser());
-  if (profile?.photoDataUrl) {
-    photo.src = profile.photoDataUrl;
+  if (PHOTO_DATA_URL_PATTERN.test(photoDataUrl)) {
+    photo.src = photoDataUrl;
     photo.alt = `${selectedHomeDetail} ev sorumlusunun fotoğrafı`;
     photo.hidden = false;
     placeholder.hidden = true;
@@ -971,6 +1097,7 @@ function closeModal() {
   $("#modal-backdrop").hidden = true;
   $("#record-modal").hidden = true;
   $("#home-modal").hidden = true;
+  $("#profile-modal").hidden = true;
   document.body.style.overflow = "";
   $("#form-error").textContent = "";
   $("#home-modal-error").textContent = "";
@@ -1370,6 +1497,7 @@ function initHomesPage() {
   initFirebase();
   initTheme();
   initPWA();
+  initProfileUI();
   $("#event-form [name=date]").value = todayISO();
   updateEverything();
 
@@ -1441,7 +1569,7 @@ function initHomesPage() {
     $$(".main-nav a").forEach((item) => item.classList.toggle("active", item === link));
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && (!$("#record-modal").hidden || !$("#home-modal").hidden)) closeModal();
+    if (event.key === "Escape" && (!$("#record-modal").hidden || !$("#home-modal").hidden || !$("#profile-modal").hidden)) closeModal();
   });
 }
 
@@ -1453,6 +1581,7 @@ function init() {
   initFirebase();
   initTheme();
   initPWA();
+  initProfileUI();
   $("#event-form [name=date]").value = todayISO();
   updateCustomDateInputs();
   updateEverything();
@@ -1541,9 +1670,9 @@ function init() {
   });
   $("#export-excel").addEventListener("click", exportExcel);
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && (!$("#record-modal").hidden || !$("#home-modal").hidden)) closeModal();
+    if (event.key === "Escape" && (!$("#record-modal").hidden || !$("#home-modal").hidden || !$("#profile-modal").hidden)) closeModal();
     if (event.key !== "Tab") return;
-    const activeModal = !$("#record-modal").hidden ? $("#record-modal") : !$("#home-modal").hidden ? $("#home-modal") : null;
+    const activeModal = !$("#record-modal").hidden ? $("#record-modal") : !$("#home-modal").hidden ? $("#home-modal") : !$("#profile-modal").hidden ? $("#profile-modal") : null;
     if (!activeModal) return;
     const focusable = [...activeModal.querySelectorAll("button, input, select, textarea, [href]")].filter((element) => !element.disabled && !element.hidden);
     if (!focusable.length) return;

@@ -49,11 +49,11 @@
           <div class="auth-register-fields" id="auth-register-fields" hidden>
             <label>
               <span>Ad</span>
-              <input id="auth-first-name" type="text" autocomplete="given-name" maxlength="80" placeholder="Adınız" />
+              <input id="auth-first-name" type="text" autocomplete="given-name" maxlength="80" placeholder="Adınız" required />
             </label>
             <label>
               <span>Soyad</span>
-              <input id="auth-last-name" type="text" autocomplete="family-name" maxlength="80" placeholder="Soyadınız" />
+              <input id="auth-last-name" type="text" autocomplete="family-name" maxlength="80" placeholder="Soyadınız" required />
             </label>
           </div>
           <label>
@@ -66,7 +66,7 @@
           </label>
           <label id="auth-password-confirm-field" hidden>
             <span>Parola tekrarı</span>
-            <input id="auth-password-confirm" type="password" autocomplete="new-password" minlength="6" placeholder="Parolanızı tekrar yazın" />
+            <input id="auth-password-confirm" type="password" autocomplete="new-password" minlength="6" placeholder="Parolanızı tekrar yazın" required />
           </label>
           <p class="form-error" id="auth-error" role="status" aria-live="polite"></p>
           <button class="button button-primary" id="auth-submit" type="submit">Giriş yap</button>
@@ -87,6 +87,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
     <script src="./firebase-config.js"></script>
-    <script src="./auth.js?v=7"></script>
+    <script src="./auth.js?v=8"></script>
   </body>
 </html>
