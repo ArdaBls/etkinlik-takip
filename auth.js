@@ -4,6 +4,8 @@
   let pendingRegistration = false;
   let auth = null;
   let database = null;
+  let approvalListenerRef = null;
+  let approvalListener = null;
   const PENDING_REGISTRATION_STORAGE_KEY = "etkinlik-takip-pending-registration-v1";
 
   const readPendingRegistration = () => {
@@ -21,6 +23,52 @@
 
   const clearPendingRegistration = () => {
     try { localStorage.removeItem(PENDING_REGISTRATION_STORAGE_KEY); } catch {}
+  };
+
+  const stopApprovalWatch = () => {
+    if (approvalListenerRef && approvalListener) approvalListenerRef.off("value", approvalListener);
+    approvalListenerRef = null;
+    approvalListener = null;
+  };
+
+  const configuredAdminEmail = () => String(window.ETKINLIK_FIREBASE_CONFIG?.adminEmail || "").trim().toLocaleLowerCase("tr-TR");
+
+  const watchApproval = (user) => {
+    stopApprovalWatch();
+    if (!user || !database) return;
+    approvalListenerRef = database.ref(`users/${encodeURIComponent(user.uid)}`);
+    approvalListener = (snapshot) => {
+      if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
+        stopApprovalWatch();
+        return;
+      }
+      const profile = snapshot.val() || {};
+      const displayName = String(profile.displayName || user.displayName || "").trim();
+      if (profile.blocked === true) {
+        stopApprovalWatch();
+        pendingRegistration = false;
+        clearPendingRegistration();
+        auth.signOut().finally(() => {
+          showAuthForm();
+          setAuthMode("login");
+          setMessage("Bu hesap yönetici tarafından engellendi.");
+        });
+        return;
+      }
+      if (profile.approved === true) {
+        stopApprovalWatch();
+        pendingRegistration = false;
+        clearPendingRegistration();
+        location.replace("./");
+        return;
+      }
+      savePendingRegistration({ email: user.email || "", displayName, createdAt: Date.now() });
+      showPendingState(user.email || "", displayName);
+    };
+    approvalListenerRef.on("value", approvalListener, (error) => {
+      console.warn("Yönetici onayı canlı dinlenemedi:", error);
+      setMessage("Onay durumu alınamadı. İnternet bağlantınızı kontrol edin.");
+    });
   };
 
   const authErrorText = (error) => {
@@ -107,16 +155,21 @@
     const reason = new URLSearchParams(location.search).get("reason");
     const pendingRegistrationData = readPendingRegistration();
     if (reason === "verify") setMessage("Devam etmek için e-posta adresinizi doğrulayın.");
-    if (reason === "pending") setMessage("Hesabınız yönetici onayı bekliyor. İzin verildiğinde tekrar giriş yapabilirsiniz.");
+    if (reason === "pending") setMessage("Hesabınız yönetici onayı bekliyor. İzin verildiğinde ana sayfa otomatik açılır.");
     if (reason === "blocked") setMessage("Bu hesabın erişimi yönetici tarafından engellendi.");
 
     $("#auth-login-mode").addEventListener("click", () => setAuthMode("login"));
     $("#auth-register-mode").addEventListener("click", () => setAuthMode("register"));
     $("#auth-pending-back").addEventListener("click", () => {
-      showAuthForm();
-      setAuthMode("login");
-      setMessage("");
-      $("#auth-email").focus();
+      stopApprovalWatch();
+      pendingRegistration = false;
+      clearPendingRegistration();
+      auth.signOut().finally(() => {
+        showAuthForm();
+        setAuthMode("login");
+        setMessage("");
+        $("#auth-email").focus();
+      });
     });
     $("#auth-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -158,18 +211,20 @@
             assignedHomeIds: {},
             createdAt: firebase.database.ServerValue.TIMESTAMP
           });
-          await auth.signOut();
           savePendingRegistration({ email, displayName, createdAt: Date.now() });
           $("#auth-password").value = "";
           $("#auth-password-confirm").value = "";
           $("#auth-first-name").value = "";
           $("#auth-last-name").value = "";
           showPendingState(email, displayName);
+          watchApproval(credential.user);
         } else {
+          stopApprovalWatch();
           await auth.signInWithEmailAndPassword(email, password);
           clearPendingRegistration();
         }
       } catch (error) {
+        stopApprovalWatch();
         if (authMode === "register" && auth.currentUser) {
           try { await auth.signOut(); } catch (signOutError) { console.warn("Kayıt sonrası oturum kapatılamadı:", signOutError); }
         }
@@ -182,9 +237,43 @@
     });
 
     auth.onAuthStateChanged(async (user) => {
-      if (!user || pendingRegistration) return;
-      clearPendingRegistration();
-      location.replace("./");
+      if (!user) {
+        stopApprovalWatch();
+        if (pendingRegistration) return;
+        const pendingData = readPendingRegistration();
+        if (pendingData) showPendingState(String(pendingData.email || ""), String(pendingData.displayName || ""));
+        return;
+      }
+      if (pendingRegistration) return;
+      if (String(user.email || "").trim().toLocaleLowerCase("tr-TR") === configuredAdminEmail()) {
+        clearPendingRegistration();
+        location.replace("./");
+        return;
+      }
+      try {
+        const snapshot = await database.ref(`users/${encodeURIComponent(user.uid)}`).once("value");
+        const profile = snapshot.val() || {};
+        if (profile.blocked === true) {
+          clearPendingRegistration();
+          await auth.signOut();
+          showAuthForm();
+          setAuthMode("login");
+          setMessage("Bu hesap yönetici tarafından engellendi.");
+          return;
+        }
+        if (profile.approved === true) {
+          clearPendingRegistration();
+          location.replace("./");
+          return;
+        }
+        const displayName = String(profile.displayName || user.displayName || "").trim();
+        savePendingRegistration({ email: user.email || "", displayName, createdAt: Date.now() });
+        showPendingState(user.email || "", displayName);
+        watchApproval(user);
+      } catch (error) {
+        console.warn("Kullanıcı onay durumu okunamadı:", error);
+        setMessage("Hesap durumu okunamadı. İnternet bağlantınızı kontrol edin.");
+      }
     });
 
     if (reason === "pending" || (pendingRegistrationData && reason !== "blocked")) {
