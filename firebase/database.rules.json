@@ -1,32 +1,32 @@
 {
   "rules": {
-    ".read": "auth != null && auth.token.email_verified == true",
-    ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
+    ".read": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('approved').val() == true)",
+    ".write": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
     "users": {
       "$uid": {
-        ".read": "auth != null && auth.token.email_verified == true && (auth.uid == $uid || auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
-        ".write": "auth != null && ((auth.token.email_verified == true && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')) || (auth.uid == $uid && !data.exists() && newData.child('role').val() == 'responsible' && newData.child('email').val() == auth.token.email))",
-        ".validate": "newData.hasChildren(['email', 'role']) && newData.child('email').isString() && (newData.child('role').val() == 'admin' || newData.child('role').val() == 'responsible')"
+        ".read": "auth != null && (auth.uid == $uid || auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
+        ".write": "auth != null && ((auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin') || (auth.uid == $uid && !data.exists() && newData.child('role').val() == 'responsible' && newData.child('email').val() == auth.token.email && newData.child('approved').val() == false))",
+        ".validate": "newData.hasChildren(['email', 'role']) && newData.child('email').isString() && (newData.child('role').val() == 'admin' || newData.child('role').val() == 'responsible') && (!newData.hasChild('approved') || newData.child('approved').isBoolean())"
       }
     },
     "eventRecords": {
       "$recordId": {
-        ".read": "auth != null && auth.token.email_verified == true",
-        ".write": "auth != null && auth.token.email_verified == true",
+        ".read": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('approved').val() == true)",
+        ".write": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('approved').val() == true)",
         ".validate": "!newData.exists() || newData.hasChildren(['id', 'date', 'home', 'type', 'eventName'])"
       }
     },
     "homes": {
       "$homeId": {
-        ".read": "auth != null && auth.token.email_verified == true",
-        ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
+        ".read": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('approved').val() == true)",
+        ".write": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
         ".validate": "!newData.exists() || (newData.hasChildren(['name', 'responsibleName']) && newData.child('name').isString() && newData.child('responsibleName').isString())"
       }
     },
     "homeProfiles": {
       "$homeId": {
-        ".read": "auth != null && auth.token.email_verified == true",
-        ".write": "auth != null && auth.token.email_verified == true && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
+        ".read": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('approved').val() == true)",
+        ".write": "auth != null && (auth.token.email == 'ADMIN_EMAIL_HERE' || root.child('users').child(auth.uid).child('role').val() == 'admin')",
         ".validate": "!newData.exists() || (newData.hasChildren(['homeName', 'photoDataUrl']) && newData.child('photoDataUrl').isString())"
       }
     }

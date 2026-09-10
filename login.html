@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" id="theme-color-meta" content="#f8f8f4" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Etkinlik Takip" />
+    <meta name="description" content="Etkinlik Takip yöneticileri için güvenli giriş." />
+    <title>Giriş | Etkinlik Takip</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="login-page">
+    <div class="page-glow glow-one" aria-hidden="true"></div>
+    <div class="page-glow glow-two" aria-hidden="true"></div>
+
+    <main class="auth-page-shell">
+      <section class="auth-card" aria-labelledby="auth-title">
+        <div class="auth-brand">
+          <a class="brand" href="./login.html" aria-label="Etkinlik Takip giriş">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                <path d="M12 21c5-3.1 8-6.6 8-11V5.8L12 3 4 5.8V10c0 4.4 3 7.9 8 11Z" />
+                <path d="m8.5 12 2.2 2.2 4.8-5" />
+              </svg>
+            </span>
+            <span>Etkinlik <strong>Takip</strong></span>
+          </a>
+        </div>
+
+        <p class="section-kicker" id="auth-kicker">Yönetici ve ev sorumlusu girişi</p>
+        <h1 id="auth-title">Güvenli çalışma alanına giriş yapın</h1>
+        <p id="auth-description">Yönetici hesabı tüm ayarları yönetir. Diğer hesaplar ev sorumlusu olarak etkinlik kaydı oluşturur.</p>
+
+        <div class="auth-mode-switch" role="tablist" aria-label="Kimlik doğrulama işlemi">
+          <button class="auth-mode-button active" id="auth-login-mode" type="button" role="tab" aria-selected="true">Giriş yap</button>
+          <button class="auth-mode-button" id="auth-register-mode" type="button" role="tab" aria-selected="false">Kayıt ol</button>
+        </div>
+
+        <form id="auth-form" novalidate>
+          <label>
+            <span>E-posta</span>
+            <input id="auth-email" type="email" autocomplete="email" placeholder="ornek@kurum.gov.tr" required />
+          </label>
+          <label>
+            <span>Parola</span>
+            <input id="auth-password" type="password" autocomplete="current-password" minlength="6" placeholder="En az 6 karakter" required />
+          </label>
+          <label id="auth-password-confirm-field" hidden>
+            <span>Parola tekrarı</span>
+            <input id="auth-password-confirm" type="password" autocomplete="new-password" minlength="6" placeholder="Parolanızı tekrar yazın" />
+          </label>
+          <p class="form-error" id="auth-error" role="status" aria-live="polite"></p>
+          <button class="button button-primary" id="auth-submit" type="submit">Giriş yap</button>
+        </form>
+        <small class="auth-note" id="auth-note">Yönetici hesabı Firebase Authentication üzerinden oluşturulur. Yeni kayıt olan hesaplar ev sorumlusu rolüyle başlar.</small>
+
+        <div class="auth-pending-state" id="auth-pending" hidden>
+          <div class="auth-pending-icon" aria-hidden="true">✓</div>
+          <p class="section-kicker">Kayıt alındı</p>
+          <h2>Yönetici onayı bekleniyor</h2>
+          <p><strong id="auth-pending-email"></strong> hesabı oluşturuldu. Yönetici erişim izni verdiğinde bu hesapla giriş yapabilirsiniz.</p>
+          <button class="button button-ghost" id="auth-pending-back" type="button">Giriş ekranına dön</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+    <script src="./firebase-config.js"></script>
+    <script src="./auth.js"></script>
+  </body>
+</html>

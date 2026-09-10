@@ -168,10 +168,11 @@ const firebaseState = {
   user: null,
   profile: null,
   role: "responsible",
-  authMode: "login",
-  pendingRegistration: false,
+  userDirectory: [],
   hydrating: false,
-  syncTimer: null
+  syncTimer: null,
+  refreshTimer: null,
+  realtimeBound: false
 };
 
 const TYPE_COLORS = {
@@ -253,6 +254,8 @@ function cloudProfilesToMap(value) {
 
 async function hydrateFromFirebase() {
   if (!firebaseState.enabled || !firebaseState.user) return;
+  clearTimeout(firebaseState.syncTimer);
+  clearTimeout(firebaseState.refreshTimer);
   firebaseState.hydrating = true;
   try {
     const [homesSnapshot, recordsSnapshot, profilesSnapshot] = await Promise.all([
@@ -264,22 +267,20 @@ async function hydrateFromFirebase() {
     const cloudResponsibles = homesSnapshot.exists() ? cloudResponsiblesToMap(homesSnapshot.val()) : {};
     const cloudRecords = recordsSnapshot.exists() ? normalizeRecords(Object.values(recordsSnapshot.val() || {})) : [];
     const cloudProfiles = profilesSnapshot.exists() ? cloudProfilesToMap(profilesSnapshot.val()) : {};
-    const hasCloudData = homesSnapshot.exists() || recordsSnapshot.exists() || profilesSnapshot.exists();
     const hasLegacyDemoHomes = cloudHomes.length > 0 && cloudHomes.every((home) => LEGACY_DEMO_HOMES.has(home));
     const shouldClearLegacyDemo = hasLegacyDemoHomes && cloudRecords.length === 0;
-    homes = shouldClearLegacyDemo ? [] : (homesSnapshot.exists() ? cloudHomes : homes);
-    homeResponsibles = shouldClearLegacyDemo ? {} : (homesSnapshot.exists() ? cloudResponsibles : homeResponsibles);
-    records = shouldClearLegacyDemo ? [] : (recordsSnapshot.exists() ? cloudRecords : records);
-    homeProfiles = shouldClearLegacyDemo ? {} : (profilesSnapshot.exists() ? cloudProfiles : homeProfiles);
+    // Once Firebase auth is active, the cloud is the source of truth. In particular,
+    // a missing node means the data was intentionally deleted and must not be
+    // repopulated from an older localStorage snapshot on the next refresh.
+    homes = shouldClearLegacyDemo ? [] : cloudHomes;
+    homeResponsibles = shouldClearLegacyDemo ? {} : cloudResponsibles;
+    records = shouldClearLegacyDemo ? [] : cloudRecords;
+    homeProfiles = shouldClearLegacyDemo ? {} : cloudProfiles;
     saveHomes(homes);
     saveHomeResponsibles(homeResponsibles);
     saveRecords(records);
     saveHomeProfiles(homeProfiles);
     updateEverything();
-    if (!hasCloudData || shouldClearLegacyDemo) {
-      firebaseState.hydrating = false;
-      await syncFirebaseState();
-    }
   } catch (error) {
     console.warn("Firebase verisi okunamadı:", error);
     showToast("Firebase verisi okunamadı. Yerel önbellek gösteriliyor.");
@@ -288,18 +289,56 @@ async function hydrateFromFirebase() {
   }
 }
 
-function authErrorText(error) {
-  const messages = {
-    "auth/invalid-credential": "E-posta veya parola hatalı.",
-    "auth/invalid-email": "Geçerli bir e-posta adresi yazın.",
-    "auth/email-already-in-use": "Bu e-posta ile bir hesap zaten var. Giriş yapmayı deneyin.",
-    "auth/weak-password": "Parola en az 6 karakter olmalıdır.",
-    "auth/user-disabled": "Bu yönetici hesabı devre dışı bırakılmış.",
-    "auth/too-many-requests": "Çok fazla başarısız deneme yapıldı. Bir süre sonra tekrar deneyin.",
-    "auth/operation-not-allowed": "E-posta/parola ile kayıt Firebase Authentication'da henüz açılmamış.",
-    "auth/requires-recent-login": "Bu işlem için yeniden giriş yapmanız gerekiyor."
+function bindFirebaseRealtime() {
+  if (firebaseState.realtimeBound || !firebaseState.enabled || !firebaseState.database) return;
+  firebaseState.realtimeBound = true;
+  const scheduleRefresh = () => {
+    if (!firebaseState.user || firebaseState.hydrating) return;
+    clearTimeout(firebaseState.refreshTimer);
+    firebaseState.refreshTimer = setTimeout(() => hydrateFromFirebase(), 120);
   };
-  return messages[error?.code] || "Giriş yapılamadı. Firebase Authentication ayarlarını kontrol edin.";
+  ["eventRecords", "homes", "homeProfiles"].forEach((path) => {
+    firebaseState.database.ref(path).on("value", scheduleRefresh, (error) => console.warn(`${path} canlı dinleyicisi başarısız:`, error));
+  });
+  if (isAdminUser()) {
+    firebaseState.database.ref("users").on("value", () => hydrateAdminUsers(), (error) => console.warn("Kullanıcı izinleri canlı dinleyicisi başarısız:", error));
+  } else if (firebaseState.user) {
+    firebaseState.database.ref(`users/${firebaseSafeKey(firebaseState.user.uid)}`).on("value", async (snapshot) => {
+      if (!firebaseState.user || snapshot.val()?.approved === true) return;
+      await firebaseState.auth.signOut();
+      redirectToLogin("pending");
+    }, (error) => console.warn("Kullanıcı izin durumu dinlenemedi:", error));
+  }
+}
+
+async function hydrateAdminUsers() {
+  const usersList = $("#users-list");
+  if (!usersList || !firebaseState.enabled || !firebaseState.user || !isAdminUser()) {
+    firebaseState.userDirectory = [];
+    renderAdminUsers();
+    return;
+  }
+  try {
+    const snapshot = await firebaseState.database.ref("users").once("value");
+    const directory = [];
+    snapshot.forEach((child) => {
+      const profile = child.val() || {};
+      if (!profile.email || profile.role === "admin") return;
+      directory.push({
+        key: child.key,
+        email: String(profile.email),
+        role: String(profile.role || "responsible"),
+        approved: profile.approved === true,
+        createdAt: Number(profile.createdAt || 0)
+      });
+    });
+    firebaseState.userDirectory = directory.sort((first, second) => Number(first.approved) - Number(second.approved) || first.email.localeCompare(second.email, "tr"));
+  } catch (error) {
+    console.warn("Kullanıcı izinleri okunamadı:", error);
+    firebaseState.userDirectory = [];
+    showToast("Kullanıcı izinleri okunamadı.");
+  }
+  renderAdminUsers();
 }
 
 function configuredAdminEmail() {
@@ -319,99 +358,28 @@ function applyRoleUI() {
     : "Giriş bekleniyor";
   renderHomes();
   renderHomeDetail();
-}
-
-function setAuthMode(mode) {
-  firebaseState.authMode = mode;
-  const registering = mode === "register";
-  $("#auth-login-mode").classList.toggle("active", !registering);
-  $("#auth-register-mode").classList.toggle("active", registering);
-  $("#auth-login-mode").setAttribute("aria-selected", String(!registering));
-  $("#auth-register-mode").setAttribute("aria-selected", String(registering));
-  $("#auth-password-confirm-field").hidden = !registering;
-  $("#auth-password-confirm").required = registering;
-  $("#auth-submit").textContent = registering ? "Ev sorumlusu hesabı oluştur" : "Giriş yap";
-  $("#auth-kicker").textContent = registering ? "Ev sorumlusu kaydı" : "Yönetici ve ev sorumlusu girişi";
-  $("#auth-description").textContent = registering
-    ? "Kayıt olan hesaplar ev sorumlusu rolüyle başlar. Yönetici yetkisi yalnızca tanımlı tek hesaba aittir."
-    : "Yönetici hesabı tüm ayarları yönetir. Diğer hesaplar ev sorumlusu olarak etkinlik kaydı oluşturur.";
-  $("#auth-note").textContent = registering
-    ? "Kayıt sonrasında e-posta adresinize doğrulama bağlantısı gönderilir."
-    : "Yönetici hesabı Firebase Authentication üzerinden oluşturulur. Yeni kayıt olan hesaplar ev sorumlusu rolüyle başlar.";
-  $("#auth-error").textContent = "";
-}
-
-function showAuthGate(message = "Yalnızca yetkili ev sorumlusu giriş yapabilir.") {
-  document.body.classList.add("auth-locked");
-  $("#auth-gate").hidden = false;
-  $("#auth-error").textContent = message;
-  $("#auth-logout").hidden = true;
-  $("#data-mode").textContent = "Giriş bekleniyor";
-  document.body.style.overflow = "hidden";
-}
-
-function hideAuthGate() {
-  document.body.classList.remove("auth-locked");
-  $("#auth-gate").hidden = true;
-  $("#auth-error").textContent = "";
-  $("#auth-logout").hidden = false;
-  applyRoleUI();
-  document.body.style.overflow = "";
-}
-
-async function handleAuthSubmit(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const button = form.querySelector("button[type=submit]");
-  const email = $("#auth-email").value.trim();
-  const password = $("#auth-password").value;
-  const passwordConfirm = $("#auth-password-confirm").value;
-  $("#auth-error").textContent = "";
-  if (!email || !password) {
-    $("#auth-error").textContent = "E-posta ve parola zorunludur.";
-    return;
-  }
-  if (firebaseState.authMode === "register" && password !== passwordConfirm) {
-    $("#auth-error").textContent = "Parola tekrarı aynı olmalıdır.";
-    return;
-  }
-  button.disabled = true;
-  button.textContent = firebaseState.authMode === "register" ? "Hesap oluşturuluyor…" : "Giriş yapılıyor…";
-  try {
-    if (firebaseState.authMode === "register") {
-      firebaseState.pendingRegistration = true;
-      const credential = await firebaseState.auth.createUserWithEmailAndPassword(email, password);
-      await credential.user.sendEmailVerification();
-      await firebaseState.database.ref(`users/${firebaseSafeKey(credential.user.uid)}`).set({
-        email,
-        role: "responsible",
-        createdAt: firebase.database.ServerValue.TIMESTAMP
-      });
-      await firebaseState.auth.signOut();
-      setAuthMode("login");
-      $("#auth-password").value = "";
-      $("#auth-password-confirm").value = "";
-      $("#auth-error").textContent = "Kayıt tamamlandı. E-posta adresinizi doğruladıktan sonra giriş yapabilirsiniz.";
-    } else {
-      await firebaseState.auth.signInWithEmailAndPassword(email, password);
-    }
-  } catch (error) {
-    $("#auth-error").textContent = authErrorText(error);
-  } finally {
-    firebaseState.pendingRegistration = false;
-    button.disabled = false;
-    button.textContent = firebaseState.authMode === "register" ? "Ev sorumlusu hesabı oluştur" : "Giriş yap";
-  }
+  renderAdminUsers();
 }
 
 async function loadFirebaseUserProfile(user) {
   firebaseState.profile = null;
-  firebaseState.role = isAdminUser(user) ? "admin" : "responsible";
+  const configuredAdmin = String(user?.email || "").trim().toLocaleLowerCase("tr-TR") === configuredAdminEmail();
+  firebaseState.role = configuredAdmin ? "admin" : "responsible";
   try {
     const snapshot = await firebaseState.database.ref(`users/${firebaseSafeKey(user.uid)}`).once("value");
     if (snapshot.exists()) {
       firebaseState.profile = snapshot.val();
-      if (snapshot.val()?.role === "admin" || snapshot.val()?.role === "responsible") firebaseState.role = snapshot.val().role;
+      if (!configuredAdmin && (snapshot.val()?.role === "admin" || snapshot.val()?.role === "responsible")) firebaseState.role = snapshot.val().role;
+    } else if (!configuredAdmin) {
+      // Repair an Auth account created before its profile write completed.
+      // The self-create rule only permits this safe, unapproved profile.
+      firebaseState.profile = { email: user.email || "", role: "responsible", approved: false };
+      await firebaseState.database.ref(`users/${firebaseSafeKey(user.uid)}`).set({
+        email: user.email || "",
+        role: "responsible",
+        approved: false,
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+      });
     }
   } catch (error) {
     console.warn("Kullanıcı rolü okunamadı:", error);
@@ -419,10 +387,21 @@ async function loadFirebaseUserProfile(user) {
   applyRoleUI();
 }
 
+function redirectToLogin(reason = "") {
+  if (location.pathname.endsWith("/login.html")) return;
+  const query = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+  location.replace(`./login.html${query}`);
+}
+
 function initFirebase() {
   const config = window.ETKINLIK_FIREBASE_CONFIG;
   if (!config || typeof firebase === "undefined") {
-    $("#data-mode").textContent = "Yerel taslak";
+    if (!config) {
+      $("#data-mode").textContent = "Yerel taslak";
+      document.body.classList.remove("app-pending");
+    } else {
+      redirectToLogin("firebase");
+    }
     return;
   }
   try {
@@ -434,25 +413,23 @@ function initFirebase() {
     firebaseState.auth.onAuthStateChanged(async (user) => {
       firebaseState.user = user;
       if (!user) {
-        firebaseState.profile = null;
-        firebaseState.role = "responsible";
-        applyRoleUI();
-        showAuthGate();
+        redirectToLogin();
         return;
       }
-      if (!user.emailVerified && !firebaseState.pendingRegistration) {
-        await firebaseState.auth.signOut();
-        showAuthGate("Devam etmek için e-posta adresinizi doğrulayın.");
-        return;
-      }
-      if (firebaseState.pendingRegistration) return;
       await loadFirebaseUserProfile(user);
-      hideAuthGate();
+      if (!isAdminUser(user) && firebaseState.profile?.approved !== true) {
+        await firebaseState.auth.signOut();
+        redirectToLogin("pending");
+        return;
+      }
+      document.body.classList.remove("app-pending");
+      await hydrateAdminUsers();
       await hydrateFromFirebase();
+      bindFirebaseRealtime();
     });
   } catch (error) {
     console.warn("Firebase başlatılamadı:", error);
-    $("#data-mode").textContent = "Yerel taslak";
+    redirectToLogin("firebase");
   }
 }
 
@@ -597,6 +574,45 @@ function renderHomes() {
       : `<span class="home-role-note">Yönetici yönetir</span>`;
     return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span>${responsibleLabel}</button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button>${adminActions}</div></div>`;
   }).join("");
+}
+
+function renderAdminUsers() {
+  const section = $("#user-access");
+  const list = $("#users-list");
+  if (!section || !list) return;
+  const admin = isAdminUser();
+  section.hidden = !admin;
+  if (!admin) {
+    list.innerHTML = "";
+    return;
+  }
+  if (!firebaseState.userDirectory.length) {
+    list.innerHTML = `<div class="empty-state"><strong>Henüz kayıt olan ev sorumlusu yok.</strong><p>Yeni kullanıcı kayıt olduğunda burada izin verebilirsiniz.</p></div>`;
+    return;
+  }
+  list.innerHTML = firebaseState.userDirectory.map((profile) => {
+    const created = profile.createdAt ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(profile.createdAt)) : "Tarih belirtilmedi";
+    const status = profile.approved ? "İzin verildi" : "Onay bekliyor";
+    const actionLabel = profile.approved ? "İzni geri al" : "Görüntüleme izni ver";
+    const actionClass = profile.approved ? "button-ghost" : "button-primary";
+    return `<article class="user-access-row"><div class="user-access-copy"><strong>${escapeHTML(profile.email)}</strong><span>Kayıt tarihi: ${escapeHTML(created)}</span></div><div class="user-access-actions"><span class="user-access-status ${profile.approved ? "approved" : "pending"}">${status}</span><button class="button button-small ${actionClass}" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-approved="${String(profile.approved)}">${actionLabel}</button></div></article>`;
+  }).join("");
+}
+
+async function setUserApproval(userKey, approved) {
+  if (!firebaseState.enabled || !firebaseState.database || !isAdminUser() || !userKey) return;
+  const profile = firebaseState.userDirectory.find((item) => item.key === userKey);
+  if (!profile) return;
+  try {
+    await firebaseState.database.ref(`users/${userKey}`).update({ approved });
+    profile.approved = approved;
+    firebaseState.userDirectory.sort((first, second) => Number(first.approved) - Number(second.approved) || first.email.localeCompare(second.email, "tr"));
+    renderAdminUsers();
+    showToast(approved ? "Kullanıcıya görüntüleme izni verildi." : "Kullanıcının görüntüleme izni geri alındı.");
+  } catch (error) {
+    console.warn("Kullanıcı izni güncellenemedi:", error);
+    showToast("Kullanıcı izni güncellenemedi.");
+  }
 }
 
 function filterRecordsByPeriod(sourceRecords, period, start = "", end = "") {
@@ -1246,9 +1262,6 @@ function init() {
   initFirebase();
   initTheme();
   initPWA();
-  $("#auth-login-mode").addEventListener("click", () => setAuthMode("login"));
-  $("#auth-register-mode").addEventListener("click", () => setAuthMode("register"));
-  $("#auth-form").addEventListener("submit", handleAuthSubmit);
   $("#event-form [name=date]").value = todayISO();
   updateCustomDateInputs();
   updateEverything();
@@ -1291,6 +1304,11 @@ function init() {
     }
     if (renameButton) openHomeModal("rename", renameButton.dataset.renameHome, renameButton);
     if (deleteButton) openHomeModal("delete", deleteButton.dataset.deleteHome, deleteButton);
+  });
+  $("#users-list").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-user-key]");
+    if (!button) return;
+    setUserApproval(button.dataset.userKey, button.dataset.userApproved !== "true");
   });
   $("#home-modal-form").addEventListener("submit", handleHomeModal);
   $("#close-home-detail").addEventListener("click", closeHomeDetail);

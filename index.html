@@ -24,30 +24,9 @@
     />
     <link rel="stylesheet" href="style.css" />
   </head>
-  <body>
+  <body class="app-pending">
     <div class="page-glow glow-one" aria-hidden="true"></div>
     <div class="page-glow glow-two" aria-hidden="true"></div>
-
-    <div class="auth-gate" id="auth-gate" hidden>
-      <section class="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title" aria-describedby="auth-description">
-        <div class="brand auth-brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 21c5-3.1 8-6.6 8-11V5.8L12 3 4 5.8V10c0 4.4 3 7.9 8 11Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg></span><span>Etkinlik <strong>Takip</strong></span></div>
-        <p class="section-kicker" id="auth-kicker">Yönetici ve ev sorumlusu girişi</p>
-        <h1 id="auth-title">Etkinlik Takip</h1>
-        <p id="auth-description">Yönetici hesabı tüm ayarları yönetir. Diğer hesaplar ev sorumlusu olarak etkinlik kaydı oluşturur.</p>
-        <div class="auth-mode-switch" role="tablist" aria-label="Kimlik doğrulama işlemi">
-          <button class="auth-mode-button active" id="auth-login-mode" type="button" role="tab" aria-selected="true">Giriş yap</button>
-          <button class="auth-mode-button" id="auth-register-mode" type="button" role="tab" aria-selected="false">Kayıt ol</button>
-        </div>
-        <form id="auth-form" novalidate>
-          <label><span>E-posta</span><input id="auth-email" type="email" autocomplete="username" required /></label>
-          <label><span>Parola</span><input id="auth-password" type="password" autocomplete="current-password" required /></label>
-          <label id="auth-password-confirm-field" hidden><span>Parola tekrarı</span><input id="auth-password-confirm" type="password" autocomplete="new-password" /></label>
-          <p class="form-error" id="auth-error" role="alert"></p>
-          <button class="button button-primary" id="auth-submit" type="submit">Giriş yap</button>
-        </form>
-        <small class="auth-note" id="auth-note">Yönetici hesabı Firebase Authentication üzerinden oluşturulur. Yeni kayıt olan hesaplar ev sorumlusu rolüyle başlar.</small>
-      </section>
-    </div>
 
     <header class="site-header">
       <a class="brand" href="#overview" aria-label="Etkinlik Takip ana sayfa">
@@ -64,6 +43,7 @@
         <a class="active" href="#records">Kayıtlar</a>
         <a href="#homes">Çocuk evleri</a>
         <a href="#reports">Raporlar</a>
+        <a data-admin-only hidden href="#user-access">Kullanıcı izinleri</a>
       </nav>
 
       <div class="header-actions">
@@ -153,6 +133,13 @@
           </button>
         </form>
         <div class="homes-list" id="homes-list"></div>
+      </section>
+
+      <section class="users-section section-shell" id="user-access" data-admin-only hidden>
+        <div class="section-heading-row">
+          <div><h2>Kullanıcı izinleri</h2><p>Kayıt olan ev sorumlularını inceleyin ve çalışma alanına erişim izni verin.</p></div>
+        </div>
+        <div class="users-list" id="users-list"></div>
       </section>
 
       <section class="home-detail section-shell" id="home-detail" aria-labelledby="home-detail-name" hidden>

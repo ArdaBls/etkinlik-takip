@@ -4,7 +4,7 @@
 
 ## Yerelde açma
 
-`index.html` dosyasını tarayıcıda açmak arayüzü görmeye yeterlidir. Firebase Authentication ve Realtime Database için GitHub Pages veya başka bir HTTP/HTTPS sunucusu kullanın. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
+`login.html` giriş/kayıt ekranını, `index.html` ise yalnızca yetkili çalışma alanını içerir. Firebase Authentication ve Realtime Database için GitHub Pages veya başka bir HTTP/HTTPS sunucusu kullanın. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
 
 PWA servis çalışanı `file://` adresinde çalışmaz. PWA kurulumu ve çevrimdışı çalışma testi için siteyi yerel bir HTTP sunucusundan veya GitHub Pages üzerindeki HTTPS adresinden açın.
 
@@ -30,7 +30,7 @@ Kurulan uygulama tarayıcı çubukları olmadan bağımsız pencere olarak açı
 
 ## Firebase bağlantısı ve kuralları
 
-Firebase Realtime Database bağlantısı `firebase-config.js` içinde tanımlıdır. Firebase Console'da **Authentication → Sign-in method → Email/Password** yöntemini açın. Giriş ekranındaki **Kayıt ol** sekmesi yeni hesapları varsayılan olarak `responsible` (ev sorumlusu) rolünde oluşturur ve e-posta doğrulaması ister. Tek yönetici hesabı `adminEmail` alanındaki e-posta ile eşleştirilir.
+Firebase Realtime Database bağlantısı `firebase-config.js` içinde tanımlıdır. Firebase Console'da **Authentication → Sign-in method → Email/Password** yöntemini açın. `login.html` içindeki **Kayıt ol** sekmesi e-posta göndermeden yeni hesabı `responsible` (ev sorumlusu) rolünde ve `approved: false` durumunda oluşturur. Kullanıcıya sitede “Kayıt alındı, yönetici onayı bekleniyor” ekranı gösterilir. Tek yönetici hesabı `adminEmail` alanındaki e-posta ile eşleştirilir.
 
 Kuralları uygulamak için hem `firebase/database.rules.json` içindeki hem de `firebase-config.js` içindeki `ADMIN_EMAIL_HERE` değerini yöneticinin doğrulanmış e-posta adresiyle değiştirip Firebase Console'daki Realtime Database **Rules** ekranına aktarın. Firebase CLI kullanıyorsanız kökteki `firebase.json` dosyası bu kural dosyasını gösterir.
 
@@ -40,9 +40,11 @@ Realtime Database'de kişi bazlı çocuk verisi içeren bir koleksiyon oluşturu
 - `homes/{homeId}`: çocuk evi adı (`name`) ve ev sorumlusu adı (`responsibleName`)
 - `homeProfiles/{homeId}`: çocuk evi adı ve sıkıştırılmış base64 fotoğraf veri URL'si
 
-Firebase Authentication ile tek admin ve birden fazla ev sorumlusu giriş yapabilir. Admin; çocuk evi, profil fotoğrafı ve kullanıcı rolü ayarlarını yönetir. Ev sorumluları etkinlik kayıtlarını kullanır; çocuk evi yönetim düğmeleri admin olmayan hesaplarda gizlenir. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
+Firebase Authentication ile tek admin ve birden fazla ev sorumlusu giriş yapabilir. Admin; çocuk evi, profil fotoğrafı ve kullanıcı izinlerini yönetir. **Kullanıcı izinleri** panelinden bekleyen hesaplara görüntüleme/kullanma izni (`approved: true`) verilebilir veya izin geri alınabilir. İzni olmayan kullanıcı ana uygulamayı görmeden giriş ekranına döner. Ev sorumluları etkinlik kayıtlarını kullanır; çocuk evi yönetim düğmeleri admin olmayan hesaplarda gizlenir. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
 
-Kayıt olan hesapların Firebase Authentication'da e-posta doğrulaması yapması gerekir. Kullanıcı rolleri `users/{uid}` altında tutulur; yeni kayıtlar yalnızca `responsible` rolüyle oluşturulabilir. Admin yapmak için ilgili kullanıcının `users/{uid}/role` değerini `admin` yapın. Kurallar admin e-postasını veya bu rolü kontrol eder.
+Kullanıcı profilleri `users/{uid}` altında tutulur. Yeni kayıtlar yalnızca `responsible` rolü ve `approved: false` ile oluşturulabilir; rol ve izin değişikliklerini yalnızca admin yapabilir. Admin yapmak için ilgili kullanıcının `users/{uid}/role` değerini `admin` yapın veya `firebase-config.js` içindeki `adminEmail` değerini kullanın. Kurallar admin e-postasını, admin rolünü ve onay durumunu kontrol eder.
+
+Uygulama açıldığında Firebase verisi yerel önbelleğin üzerine yazılır; Firebase'de silinen kayıtlar tekrar oluşturulmaz. Etkinlik, çocuk evi ve profil yolları Realtime Database canlı dinleyicileriyle izlenir. Kural dosyası veya admin e-postası değiştirildikten sonra ilgili kuralları Firebase Console'da yayımlayın.
 
 Firebase CLI ile yayımlamak için kök klasörde `firebase login` ve ardından `firebase deploy --only database` çalıştırılabilir. GitHub Pages iş akışı (`.github/workflows/pages.yml`) yalnızca statik siteyi yayımlar; Firebase kuralları ayrıca Firebase Console veya CLI üzerinden yayımlanmalıdır.
 
