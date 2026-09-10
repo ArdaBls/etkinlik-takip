@@ -199,8 +199,6 @@ const firebaseState = {
   user: null,
   profile: null,
   role: "responsible",
-  userDirectory: [],
-  auditLogs: [],
   hydrating: false,
   syncTimer: null,
   refreshTimer: null,
@@ -382,10 +380,7 @@ function bindFirebaseRealtime() {
   ["eventRecords", "homes", "homeProfiles"].forEach((path) => {
     firebaseState.database.ref(path).on("value", scheduleRefresh, (error) => console.warn(`${path} canlı dinleyicisi başarısız:`, error));
   });
-  if (isAdminUser()) {
-    firebaseState.database.ref("users").on("value", () => hydrateAdminUsers(), (error) => console.warn("Kullanıcı izinleri canlı dinleyicisi başarısız:", error));
-    firebaseState.database.ref("auditLogs").on("value", () => hydrateAdminAuditLogs(), (error) => console.warn("Değişiklik günlüğü canlı dinleyicisi başarısız:", error));
-  } else if (firebaseState.user) {
+  if (firebaseState.user && !isAdminUser()) {
     firebaseState.database.ref(`users/${firebaseSafeKey(firebaseState.user.uid)}`).on("value", async (snapshot) => {
       const profile = snapshot.val() || {};
       if (!firebaseState.user || (profile.approved === true && profile.blocked !== true)) return;
@@ -393,58 +388,6 @@ function bindFirebaseRealtime() {
       redirectToLogin(profile.blocked === true ? "blocked" : "pending");
     }, (error) => console.warn("Kullanıcı izin durumu dinlenemedi:", error));
   }
-}
-
-async function hydrateAdminUsers() {
-  const usersList = $("#users-list");
-  if (!usersList || !firebaseState.enabled || !firebaseState.user || !isAdminUser()) {
-    firebaseState.userDirectory = [];
-    renderAdminUsers();
-    return;
-  }
-  try {
-    const snapshot = await firebaseState.database.ref("users").once("value");
-    const directory = [];
-    snapshot.forEach((child) => {
-      const profile = child.val() || {};
-      if (!profile.email || profile.role === "admin") return;
-      directory.push({
-        key: child.key,
-        email: String(profile.email),
-        role: String(profile.role || "responsible"),
-        approved: profile.approved === true,
-        blocked: profile.blocked === true,
-        createdAt: Number(profile.createdAt || 0)
-      });
-    });
-    firebaseState.userDirectory = directory.sort((first, second) => Number(first.approved) - Number(second.approved) || first.email.localeCompare(second.email, "tr"));
-  } catch (error) {
-    console.warn("Kullanıcı izinleri okunamadı:", error);
-    firebaseState.userDirectory = [];
-    showToast("Kullanıcı izinleri okunamadı.");
-  }
-  renderAdminUsers();
-}
-
-async function hydrateAdminAuditLogs() {
-  if (!firebaseState.enabled || !firebaseState.database || !firebaseState.user || !isAdminUser()) {
-    firebaseState.auditLogs = [];
-    renderAuditLogs();
-    return;
-  }
-  try {
-    const snapshot = await firebaseState.database.ref("auditLogs").limitToLast(40).once("value");
-    const logs = [];
-    snapshot.forEach((child) => {
-      const log = child.val();
-      if (log && typeof log === "object") logs.push({ ...log, key: child.key });
-    });
-    firebaseState.auditLogs = logs.sort((first, second) => Number(second.timestamp || 0) - Number(first.timestamp || 0));
-  } catch (error) {
-    console.warn("Değişiklik günlüğü okunamadı:", error);
-    firebaseState.auditLogs = [];
-  }
-  renderAuditLogs();
 }
 
 function configuredAdminEmail() {
@@ -464,8 +407,6 @@ function applyRoleUI() {
     : "Giriş bekleniyor";
   renderHomes();
   renderHomeDetail();
-  renderAdminUsers();
-  renderAuditLogs();
 }
 
 async function loadFirebaseUserProfile(user) {
@@ -530,8 +471,6 @@ function initFirebase() {
         return;
       }
       document.body.classList.remove("app-pending");
-      await hydrateAdminUsers();
-      await hydrateAdminAuditLogs();
       await hydrateFromFirebase();
       bindFirebaseRealtime();
     });
@@ -682,110 +621,6 @@ function renderHomes() {
       : `<span class="home-role-note">Yönetici yönetir</span>`;
     return `<div class="home-row${isSelected ? " selected" : ""}"><button class="home-name-button" type="button" data-open-home="${escapeHTML(home)}" aria-label="${escapeHTML(home)} detayını aç"><strong>${escapeHTML(home)}</strong><span>${eventCount} etkinlik kaydı</span>${responsibleLabel}</button><div class="row-actions"><button class="row-action row-open" type="button" data-open-home="${escapeHTML(home)}">Aç</button>${adminActions}</div></div>`;
   }).join("");
-}
-
-function renderAdminUsers() {
-  const section = $("#user-access");
-  const list = $("#users-list");
-  if (!section || !list) return;
-  const admin = isAdminUser();
-  section.hidden = !admin;
-  const pendingBadge = $("#pending-user-count");
-  if (!admin) {
-    list.innerHTML = "";
-    if (pendingBadge) pendingBadge.hidden = true;
-    return;
-  }
-  const pendingCount = firebaseState.userDirectory.filter((profile) => !profile.approved && !profile.blocked).length;
-  if (pendingBadge) {
-    pendingBadge.textContent = String(pendingCount);
-    pendingBadge.hidden = pendingCount === 0;
-  }
-  if (!firebaseState.userDirectory.length) {
-    list.innerHTML = `<div class="empty-state"><strong>Henüz kayıt olan ev sorumlusu yok.</strong><p>Yeni kullanıcı kayıt olduğunda burada izin verebilirsiniz.</p></div>`;
-    return;
-  }
-  list.innerHTML = firebaseState.userDirectory.map((profile) => {
-    const created = profile.createdAt ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(profile.createdAt)) : "Tarih belirtilmedi";
-    const status = profile.blocked ? "Engellendi" : profile.approved ? "İzin verildi" : "Onay bekliyor";
-    const actionLabel = profile.approved ? "İzni geri al" : "Görüntüleme izni ver";
-    const actionClass = profile.approved ? "button-ghost" : "button-primary";
-    const statusClass = profile.blocked ? "blocked" : profile.approved ? "approved" : "pending";
-    const blockLabel = profile.blocked ? "Engeli kaldır" : "Hesabı engelle";
-    return `<article class="user-access-row"><div class="user-access-copy"><strong>${escapeHTML(profile.email)}</strong><span>Kayıt tarihi: ${escapeHTML(created)}</span></div><div class="user-access-actions"><span class="user-access-status ${statusClass}">${status}</span><button class="button button-small ${actionClass}" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-approved="${String(profile.approved)}">${actionLabel}</button><button class="button button-small button-ghost" type="button" data-user-key="${escapeHTML(profile.key)}" data-user-blocked="${String(profile.blocked)}">${blockLabel}</button></div></article>`;
-  }).join("");
-}
-
-function renderAuditLogs() {
-  const list = $("#audit-log-list");
-  if (!list) return;
-  if (!isAdminUser()) {
-    list.innerHTML = "";
-    return;
-  }
-  if (!firebaseState.auditLogs.length) {
-    list.innerHTML = `<div class="empty-state"><strong>Henüz değişiklik günlüğü yok.</strong><p>Yeni işlemler burada görünür.</p></div>`;
-    return;
-  }
-  const labels = {
-    "event.create": "Etkinlik eklendi",
-    "event.update": "Etkinlik güncellendi",
-    "event.delete": "Etkinlik silindi",
-    "home.create": "Çocuk evi eklendi",
-    "home.rename": "Çocuk evi adı değiştirildi",
-    "home.delete": "Çocuk evi silindi",
-    "home.photo.update": "Sorumlu fotoğrafı güncellendi",
-    "user.approve": "Kullanıcıya izin verildi",
-    "user.revoke": "Kullanıcı izni geri alındı",
-    "user.block": "Kullanıcı engellendi",
-    "user.unblock": "Kullanıcı engeli kaldırıldı"
-  };
-  list.innerHTML = firebaseState.auditLogs.map((log) => {
-    const detail = log.details?.from && log.details?.to
-      ? `${log.details.from} → ${log.details.to}`
-      : log.details?.home || log.details?.email || log.target || "—";
-    const date = log.timestamp ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(log.timestamp)) : "Tarih belirtilmedi";
-    return `<div class="audit-log-row"><div><strong>${escapeHTML(labels[log.action] || log.action || "İşlem")}</strong><span>${escapeHTML(String(detail))}</span></div><time datetime="${log.timestamp ? new Date(log.timestamp).toISOString() : ""}">${escapeHTML(date)}</time></div>`;
-  }).join("");
-}
-
-async function setUserApproval(userKey, approved) {
-  if (!firebaseState.enabled || !firebaseState.database || !isAdminUser() || !userKey) return;
-  const profile = firebaseState.userDirectory.find((item) => item.key === userKey);
-  if (!profile) return;
-  try {
-    const audit = createAuditEntry(approved ? "user.approve" : "user.revoke", userKey, { email: profile.email });
-    await firebaseState.database.ref().update({
-      [`users/${userKey}/approved`]: approved,
-      [`auditLogs/${firebaseSafeKey(audit.id)}`]: audit
-    });
-    profile.approved = approved;
-    firebaseState.userDirectory.sort((first, second) => Number(first.approved) - Number(second.approved) || first.email.localeCompare(second.email, "tr"));
-    renderAdminUsers();
-    showToast(approved ? "Kullanıcıya görüntüleme izni verildi." : "Kullanıcının görüntüleme izni geri alındı.");
-  } catch (error) {
-    console.warn("Kullanıcı izni güncellenemedi:", error);
-    showToast("Kullanıcı izni güncellenemedi.");
-  }
-}
-
-async function setUserBlocked(userKey, blocked) {
-  if (!firebaseState.enabled || !firebaseState.database || !isAdminUser() || !userKey) return;
-  const profile = firebaseState.userDirectory.find((item) => item.key === userKey);
-  if (!profile) return;
-  try {
-    const audit = createAuditEntry(blocked ? "user.block" : "user.unblock", userKey, { email: profile.email });
-    await firebaseState.database.ref().update({
-      [`users/${userKey}/blocked`]: blocked,
-      [`auditLogs/${firebaseSafeKey(audit.id)}`]: audit
-    });
-    profile.blocked = blocked;
-    renderAdminUsers();
-    showToast(blocked ? "Kullanıcı hesabı engellendi." : "Kullanıcı hesabının engeli kaldırıldı.");
-  } catch (error) {
-    console.warn("Kullanıcı engel durumu güncellenemedi:", error);
-    showToast("Kullanıcı engel durumu güncellenemedi.");
-  }
 }
 
 function filterRecordsByPeriod(sourceRecords, period, start = "", end = "") {
@@ -1498,15 +1333,6 @@ function init() {
     }
     if (renameButton) openHomeModal("rename", renameButton.dataset.renameHome, renameButton);
     if (deleteButton) openHomeModal("delete", deleteButton.dataset.deleteHome, deleteButton);
-  });
-  $("#users-list").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-user-key]");
-    if (!button) return;
-    if (button.dataset.userBlocked !== undefined) {
-      setUserBlocked(button.dataset.userKey, button.dataset.userBlocked !== "true");
-      return;
-    }
-    setUserApproval(button.dataset.userKey, button.dataset.userApproved !== "true");
   });
   $("#home-modal-form").addEventListener("submit", handleHomeModal);
   $("#close-home-detail").addEventListener("click", closeHomeDetail);

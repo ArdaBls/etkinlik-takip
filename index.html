@@ -43,7 +43,6 @@
         <a class="active" href="#records">Kayıtlar</a>
         <a href="#homes">Çocuk evleri</a>
         <a href="#reports">Raporlar</a>
-        <a data-admin-only hidden href="#user-access">Kullanıcı izinleri <span class="admin-pending-badge" id="pending-user-count" hidden>0</span></a>
       </nav>
 
       <div class="header-actions">
@@ -54,6 +53,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
           Uygulamayı yükle
         </button>
+        <a class="button button-ghost button-small admin-users-link" id="admin-users-link" data-admin-only hidden href="./admin-users.html">Kullanıcı izinleri</a>
         <button class="button button-ghost button-small auth-logout" id="auth-logout" type="button" hidden>Çıkış</button>
         <button class="icon-button" id="theme-toggle" type="button" aria-label="Koyu temaya geç">
           <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -133,15 +133,6 @@
           </button>
         </form>
         <div class="homes-list" id="homes-list"></div>
-      </section>
-
-      <section class="users-section section-shell" id="user-access" data-admin-only hidden>
-        <div class="section-heading-row">
-          <div><h2>Kullanıcı izinleri</h2><p>Kayıt olan ev sorumlularını inceleyin ve çalışma alanına erişim izni verin.</p></div>
-        </div>
-        <div class="users-list" id="users-list"></div>
-        <div class="audit-log-heading"><h3>Son değişiklikler</h3><p>Etkinlik ve yönetim işlemleri değiştirilemez günlük olarak tutulur.</p></div>
-        <div class="audit-log-list" id="audit-log-list"></div>
       </section>
 
       <section class="home-detail section-shell" id="home-detail" aria-labelledby="home-detail-name" hidden>

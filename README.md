@@ -4,7 +4,7 @@
 
 ## Yerelde açma
 
-`login.html` giriş/kayıt ekranını, `index.html` ise yalnızca yetkili çalışma alanını içerir. Firebase Authentication ve Realtime Database için GitHub Pages veya başka bir HTTP/HTTPS sunucusu kullanın. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
+`login.html` giriş/kayıt ekranını, `index.html` yalnızca yetkili çalışma alanını, `admin-users.html` ise yalnızca admin kullanıcı izinleri ve değişiklik günlüğünü içerir. Firebase Authentication ve Realtime Database için GitHub Pages veya başka bir HTTP/HTTPS sunucusu kullanın. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
 
 PWA servis çalışanı `file://` adresinde çalışmaz. PWA kurulumu ve çevrimdışı çalışma testi için siteyi yerel bir HTTP sunucusundan veya GitHub Pages üzerindeki HTTPS adresinden açın.
 
@@ -43,7 +43,7 @@ Realtime Database'de kişi bazlı çocuk verisi içeren bir koleksiyon oluşturu
 - `homeProfiles/{homeId}`: çocuk evi adı ve sıkıştırılmış base64 fotoğraf veri URL'si
 - `auditLogs/{logId}`: değiştirilemeyen ekleme günlüğü (işlem, hedef, kullanıcı ve zaman)
 
-Firebase Authentication ile tek admin ve birden fazla ev sorumlusu giriş yapabilir. Admin; çocuk evi, profil fotoğrafı ve kullanıcı izinlerini yönetir. **Kullanıcı izinleri** panelinden bekleyen hesaplara görüntüleme/kullanma izni (`approved: true`) verilebilir, geri alınabilir veya hesap engellenebilir (`blocked: true`). İzni olmayan/engellenen kullanıcı ana uygulamayı görmeden giriş ekranına döner. Ev sorumluları etkinlik kayıtlarını kullanır; çocuk evi yönetim düğmeleri admin olmayan hesaplarda gizlenir. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
+Firebase Authentication ile tek admin ve birden fazla ev sorumlusu giriş yapabilir. Admin; çocuk evi, profil fotoğrafı ve kullanıcı izinlerini yönetir. Ana uygulamadaki **Kullanıcı izinleri** bağlantısı yalnızca admin için görünür ve `admin-users.html` sayfasını açar. Bu sayfada bekleyen hesaplara görüntüleme/kullanma izni (`approved: true`) verilebilir, geri alınabilir veya hesap engellenebilir (`blocked: true`); son değişiklik günlüğü de yalnızca burada gösterilir. İzni olmayan/engellenen kullanıcı ana uygulamayı görmeden giriş ekranına döner. Ev sorumluları etkinlik kayıtlarını kullanır; çocuk evi yönetim düğmeleri admin olmayan hesaplarda gizlenir. Yetkilendirme yalnızca arayüzde değil, Realtime Database kurallarında da zorunlu kılınmalıdır. Kural dosyası ayrı klasörde tutulur: `firebase/database.rules.json`.
 
 Kullanıcı profilleri `users/{uid}` altında tutulur. Yeni kayıtlar yalnızca `responsible` rolü ve `approved: false` ile oluşturulabilir; rol ve izin değişikliklerini yalnızca admin yapabilir. Admin yapmak için ilgili kullanıcının `users/{uid}/role` değerini `admin` yapın veya `firebase-config.js` içindeki `adminEmail` değerini kullanın. Kurallar admin e-postasını, admin rolünü ve onay durumunu kontrol eder.
 

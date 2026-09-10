@@ -267,6 +267,10 @@ body.app-pending > *:not(.page-glow) { visibility: hidden; }
 
 /* Yönetici kullanıcı izinleri */
 .users-section { padding: 28px; margin-bottom: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--rounded); box-shadow: var(--shadow); }
+.admin-page-main { padding-top: 38px; }
+.users-section h1 { margin: 0; color: var(--ink-strong); font-family: "Fraunces", Georgia, serif; font-size: 30px; letter-spacing: -.8px; }
+.users-section .section-heading-row > div > p:not(.section-kicker) { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.admin-pending-badge-large { min-height: 27px; padding-inline: 10px; font-size: 10px; }
 .users-list { overflow: hidden; margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; }
 .user-access-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .user-access-row:last-child { border-bottom: 0; }
@@ -296,6 +300,7 @@ body.dark-theme .form-success { color: var(--mint); }
   .login-page { padding: 16px 14px; place-items: start center; }
   .auth-page-shell { min-height: calc(100vh - 32px); }
   .users-section { padding: 18px; border-radius: 14px; }
+  .admin-page-main { padding-top: 22px; }
   .users-list { margin-top: 17px; }
   .audit-log-heading { margin-top: 23px; padding-top: 18px; }
   .audit-log-row { align-items: flex-start; flex-direction: column; gap: 5px; }
