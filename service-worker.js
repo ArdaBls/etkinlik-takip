@@ -1,9 +1,10 @@
 // Bump this value whenever a deployed asset changes so returning users do not
 // get an older cached shell after a GitHub Pages update.
-const CACHE_NAME = "etkinlik-takip-v10";
+const CACHE_NAME = "etkinlik-takip-v11";
 const APP_ASSETS = [
   "./",
   "./index.html",
+  "./cocuk-evleri.html",
   "./login.html",
   "./admin-users.html",
   "./style.css",
@@ -51,6 +52,7 @@ self.addEventListener("fetch", (event) => {
           const pathname = new URL(event.request.url).pathname;
           if (pathname.endsWith("/login.html")) return caches.match("./login.html");
           if (pathname.endsWith("/admin-users.html")) return caches.match("./admin-users.html");
+          if (pathname.endsWith("/cocuk-evleri.html")) return caches.match("./cocuk-evleri.html");
           return caches.match("./index.html");
         }))
     );

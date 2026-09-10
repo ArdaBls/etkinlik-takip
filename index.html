@@ -41,7 +41,7 @@
 
       <nav class="main-nav" id="main-nav" aria-label="Ana menü">
         <a class="active" href="#records">Kayıtlar</a>
-        <a href="#homes">Çocuk evleri</a>
+        <a href="./cocuk-evleri.html">Çocuk evleri</a>
         <a href="#reports">Raporlar</a>
       </nav>
 
@@ -117,86 +117,6 @@
           <div class="empty-state table-empty" id="records-empty" hidden>
             <span>⌕</span><strong>Bu filtrede kayıt bulunamadı.</strong><p>Arama veya filtreleri değiştirip tekrar deneyin.</p>
           </div>
-        </div>
-      </section>
-
-      <section class="homes-section section-shell" id="homes">
-        <div class="section-heading-row">
-          <div><h2>Çocuk evleri</h2><p>Etkinlik kaydı oluştururken kullanılacak çocuk evlerini yönetin.</p></div>
-        </div>
-          <form class="home-add-form" id="home-add-form" data-admin-only>
-          <label class="search-field"><input id="new-home-name" type="text" maxlength="80" placeholder="Örn. Mercan" aria-label="Çocuk evinin kısa adı" required /></label>
-          <label class="search-field"><input id="new-home-responsible" type="text" maxlength="80" placeholder="Ev sorumlusunun adı" aria-label="Ev sorumlusunun adı" required /></label>
-          <button class="button button-primary button-small" type="submit">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" /></svg>
-            Çocuk evi ekle
-          </button>
-        </form>
-        <div class="homes-list" id="homes-list"></div>
-      </section>
-
-      <section class="home-detail section-shell" id="home-detail" aria-labelledby="home-detail-name" hidden>
-        <div class="section-heading-row home-detail-heading">
-          <div>
-            <p class="section-kicker">Çocuk evi ayrıntısı</p>
-            <h2 id="home-detail-name">Çocuk evi</h2>
-            <p id="home-detail-home-count">0 toplam etkinlik kaydı</p>
-          </div>
-          <button class="button button-ghost button-small" id="close-home-detail" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
-            Çocuk evleri listesine dön
-          </button>
-        </div>
-
-        <div class="home-detail-grid">
-          <aside class="home-profile-card" aria-labelledby="home-profile-title">
-            <div class="home-photo-frame">
-              <img id="home-detail-photo" alt="" hidden />
-              <div class="home-photo-placeholder" id="home-detail-photo-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="8" r="3.2" /><path d="M5.5 20c.7-3.4 2.8-5.2 6.5-5.2s5.8 1.8 6.5 5.2" /></svg>
-                <span>Fotoğraf eklenmedi</span>
-              </div>
-            </div>
-            <div class="home-profile-copy">
-              <p class="section-kicker">Ev sorumlusu</p>
-              <h3 id="home-profile-title">Görevli fotoğrafı</h3>
-              <p>Bu fotoğraf yalnızca seçili çocuk evinin ayrıntı ekranında gösterilir.</p>
-            </div>
-            <input id="home-photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden />
-            <button class="button button-ghost home-photo-button" id="home-photo-button" type="button">Fotoğraf ekle</button>
-            <small class="home-photo-note">PNG, JPG veya WebP · En fazla 3 MB, otomatik sıkıştırılır</small>
-          </aside>
-
-          <section class="home-detail-results" aria-labelledby="home-detail-results-title">
-            <div class="home-detail-results-heading">
-              <div>
-                <p class="section-kicker">Etkinlik geçmişi</p>
-                <h3 id="home-detail-results-title">Gidilen etkinlikler</h3>
-                <p class="home-detail-summary" id="home-detail-summary">0 kayıt gösteriliyor</p>
-              </div>
-              <button class="button button-primary button-small" id="export-home-excel" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
-                Ev Excel'i indir
-              </button>
-            </div>
-
-            <div class="home-detail-filters" aria-label="Çocuk evi etkinlik filtreleri">
-              <label><span>Dönem</span><select id="home-detail-period"><option value="all">Tüm zamanlar</option><option value="today">Bugün</option><option value="week">Son 7 gün</option><option value="month">Bu ay</option><option value="year">Bu yıl</option><option value="custom">Özel tarih aralığı</option></select></label>
-              <label><span>Başlangıç tarihi</span><input id="home-detail-start-date" type="date" disabled /></label>
-              <label><span>Bitiş tarihi</span><input id="home-detail-end-date" type="date" disabled /></label>
-              <label><span>Etkinlik türü</span><select id="home-detail-type"><option value="all">Tüm türler</option><option value="Spor">Spor</option><option value="Kültür &amp; Sanat">Kültür &amp; Sanat</option><option value="Gezi">Gezi</option><option value="Eğitim">Eğitim</option><option value="Diğer">Diğer</option></select></label>
-            </div>
-
-            <div class="table-wrap home-detail-table-wrap">
-              <table class="home-detail-table">
-                <thead><tr><th scope="col">Tarih</th><th scope="col">Etkinlik</th><th scope="col">Yer</th><th scope="col">Saat</th><th scope="col" aria-label="İşlemler"></th></tr></thead>
-                <tbody id="home-detail-table-body"></tbody>
-              </table>
-              <div class="empty-state" id="home-detail-empty" hidden>
-                <span>⌕</span><strong>Bu filtrede etkinlik bulunamadı.</strong><p>Tarih veya etkinlik türü filtresini değiştirip tekrar deneyin.</p>
-              </div>
-            </div>
-          </section>
         </div>
       </section>
 

@@ -4,7 +4,7 @@
 
 ## Yerelde açma
 
-`login.html` giriş/kayıt ekranını, `index.html` yalnızca yetkili çalışma alanını, `admin-users.html` ise yalnızca admin kullanıcı izinleri ve değişiklik günlüğünü içerir. Firebase Authentication ve Realtime Database için GitHub Pages veya başka bir HTTP/HTTPS sunucusu kullanın. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
+`login.html` giriş/kayıt ekranını, `index.html` etkinlik kayıtları ve raporları, `cocuk-evleri.html` ev sorumlularına göre akordeonlu çocuk evi dizinini, `admin-users.html` ise yalnızca admin kullanıcı izinleri ve değişiklik günlüğünü içerir. Firebase Authentication ve Realtime Database için GitHub Pages veya başka bir HTTP/HTTPS sunucusu kullanın. Excel indirme işlevi için internet bağlantısı gerekir; bu işlev SheetJS'nin tarayıcı sürümünü kullanır.
 
 PWA servis çalışanı `file://` adresinde çalışmaz. PWA kurulumu ve çevrimdışı çalışma testi için siteyi yerel bir HTTP sunucusundan veya GitHub Pages üzerindeki HTTPS adresinden açın.
 

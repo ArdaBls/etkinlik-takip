@@ -485,10 +485,13 @@ function getReportHomes() {
 }
 
 function populateHomeSelects() {
-  const selectedReportHome = $("#report-home-filter").value || "all";
-  $("#form-home-select").innerHTML = `<option value="" selected disabled>Seçiniz</option>${homes.map((home) => `<option value="${escapeHTML(home)}">${escapeHTML(home)}</option>`).join("")}`;
-  $("#report-home-filter").innerHTML = `<option value="all">Tüm çocuk evleri</option>${getReportHomes().map((home) => `<option value="${escapeHTML(home)}">${escapeHTML(home)}</option>`).join("")}`;
-  if ([...$("#report-home-filter").options].some((option) => option.value === selectedReportHome)) $("#report-home-filter").value = selectedReportHome;
+  const formHomeSelect = $("#form-home-select");
+  if (formHomeSelect) formHomeSelect.innerHTML = `<option value="" selected disabled>Seçiniz</option>${homes.map((home) => `<option value="${escapeHTML(home)}">${escapeHTML(home)}</option>`).join("")}`;
+  const reportHomeFilter = $("#report-home-filter");
+  if (!reportHomeFilter) return;
+  const selectedReportHome = reportHomeFilter.value || "all";
+  reportHomeFilter.innerHTML = `<option value="all">Tüm çocuk evleri</option>${getReportHomes().map((home) => `<option value="${escapeHTML(home)}">${escapeHTML(home)}</option>`).join("")}`;
+  if ([...reportHomeFilter.options].some((option) => option.value === selectedReportHome)) reportHomeFilter.value = selectedReportHome;
 }
 
 function escapeHTML(value = "") {
@@ -607,6 +610,7 @@ function renderRecordsTable() {
 
 function renderHomes() {
   const list = $("#homes-list");
+  if (!list) return;
   if (!homes.length) {
     list.innerHTML = `<div class="empty-state"><strong>Henüz çocuk evi eklenmedi.</strong><p>Etkinlik kaydı oluşturmak için önce bir çocuk evi ekleyin.</p></div>`;
     return;
@@ -638,6 +642,10 @@ function renderHomes() {
   list.innerHTML = sortedGroups.map(([responsible, groupHomes], groupIndex) => {
     const sortedHomes = groupHomes.sort((a, b) => a.localeCompare(b, "tr", { sensitivity: "base" }));
     const headingId = `responsible-group-${groupIndex}`;
+    if (document.body.dataset.page === "homes") {
+      const isOpen = sortedHomes.includes(selectedHomeDetail);
+      return `<details class="responsible-accordion"${isOpen ? " open" : ""}><summary aria-controls="${headingId}-homes"><span class="responsible-accordion-copy"><span class="section-kicker">Ev sorumlusu</span><strong id="${headingId}">${escapeHTML(responsible)}</strong></span><span class="responsible-accordion-count">${sortedHomes.length} çocuk evi</span></summary><div class="responsible-home-grid" id="${headingId}-homes">${sortedHomes.map(renderHomeCard).join("")}</div></details>`;
+    }
     return `<section class="responsible-home-group" aria-labelledby="${headingId}"><div class="responsible-group-heading"><div><p class="section-kicker">Ev sorumlusu</p><h3 id="${headingId}">${escapeHTML(responsible)}</h3></div><span>${sortedHomes.length} çocuk evi</span></div><div class="responsible-home-grid">${sortedHomes.map(renderHomeCard).join("")}</div></section>`;
   }).join("");
 }
@@ -714,6 +722,7 @@ function closeHomeDetail() {
 
 function renderHomeDetail() {
   const section = $("#home-detail");
+  if (!section) return;
   if (!selectedHomeDetail || !homes.includes(selectedHomeDetail)) {
     section.hidden = true;
     return;
@@ -852,13 +861,13 @@ function renderReportSummary() {
 }
 
 function updateEverything() {
-  populateHomeSelects();
-  renderStats();
-  renderMonthlyDistribution();
-  renderRecordsTable();
+  if ($("#form-home-select")) { populateHomeSelects(); }
+  if ($("#stat-events")) { renderStats(); }
+  if ($("#monthly-type-bars")) { renderMonthlyDistribution(); }
+  if ($("#records-table-body")) { renderRecordsTable(); }
   renderHomes();
   renderHomeDetail();
-  renderReportSummary();
+  if ($("#report-period")) { renderReportSummary(); }
 }
 
 function showToast(message) {
@@ -1306,7 +1315,81 @@ function initPWA() {
   });
 }
 
+function initHomesPage() {
+  initFirebase();
+  initTheme();
+  initPWA();
+  $("#event-form [name=date]").value = todayISO();
+  updateEverything();
+
+  $("#open-record-form-secondary").addEventListener("click", (event) => openModal(null, event.currentTarget));
+  $$(".modal-close").forEach((button) => button.addEventListener("click", closeModal));
+  $("#modal-backdrop").addEventListener("click", closeModal);
+  $("#event-form").addEventListener("submit", handleEventForm);
+  if ($("#home-add-form")) {
+    $("#home-add-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const nameInput = $("#new-home-name");
+      const responsibleInput = $("#new-home-responsible");
+      if (addHome(nameInput.value, responsibleInput.value)) {
+        nameInput.value = "";
+        responsibleInput.value = "";
+      }
+    });
+    $("#homes-list").addEventListener("click", (event) => {
+      const openButton = event.target.closest("[data-open-home]");
+      const renameButton = event.target.closest("[data-rename-home]");
+      const deleteButton = event.target.closest("[data-delete-home]");
+      if (openButton) {
+        openHomeDetail(openButton.dataset.openHome);
+        return;
+      }
+      if (renameButton) openHomeModal("rename", renameButton.dataset.renameHome, renameButton);
+      if (deleteButton) openHomeModal("delete", deleteButton.dataset.deleteHome, deleteButton);
+    });
+    $("#home-modal-form")?.addEventListener("submit", handleHomeModal);
+    $("#close-home-detail")?.addEventListener("click", closeHomeDetail);
+    $("#home-detail-period")?.addEventListener("change", () => {
+      updateHomeDetailDateInputs();
+      renderHomeDetail();
+    });
+    ["#home-detail-start-date", "#home-detail-end-date", "#home-detail-type"].forEach((selector) => {
+      $(selector)?.addEventListener("change", renderHomeDetail);
+    });
+    $("#home-detail-table-body")?.addEventListener("click", (event) => {
+      const editButton = event.target.closest("[data-edit-id]");
+      if (editButton) editRecord(editButton.dataset.editId, editButton);
+    });
+    $("#home-photo-button")?.addEventListener("click", () => $("#home-photo-input").click());
+    $("#home-photo-input")?.addEventListener("change", handleHomePhotoChange);
+    $("#export-home-excel")?.addEventListener("click", exportHomeExcel);
+  }
+
+  const mobileNavToggle = $("#mobile-nav-toggle");
+  const mainNav = $("#main-nav");
+  mobileNavToggle.addEventListener("click", () => {
+    const isOpen = mainNav.classList.toggle("mobile-open");
+    mobileNavToggle.setAttribute("aria-expanded", String(isOpen));
+    mobileNavToggle.setAttribute("aria-label", isOpen ? "Menüyü kapat" : "Menüyü aç");
+  });
+  mainNav.addEventListener("click", (event) => {
+    const link = event.target.closest("a");
+    if (!link) return;
+    $$(".main-nav a").forEach((item) => item.classList.toggle("active", item === link));
+    mainNav.classList.remove("mobile-open");
+    mobileNavToggle.setAttribute("aria-expanded", "false");
+    mobileNavToggle.setAttribute("aria-label", "Menüyü aç");
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && (!$("#record-modal").hidden || !$("#home-modal").hidden)) closeModal();
+  });
+}
+
 function init() {
+  if (document.body.dataset.page === "homes") {
+    initHomesPage();
+    return;
+  }
   initFirebase();
   initTheme();
   initPWA();
@@ -1385,7 +1468,10 @@ function init() {
     mobileNavToggle.setAttribute("aria-label", "Menüyü aç");
   });
   const navLinks = $$(".main-nav a");
-  const observedSections = navLinks.map((link) => document.querySelector(link.getAttribute("href"))).filter(Boolean);
+  const observedSections = navLinks.map((link) => {
+    const href = link.getAttribute("href") || "";
+    return href.startsWith("#") ? document.querySelector(href) : null;
+  }).filter(Boolean);
   if ("IntersectionObserver" in window && observedSections.length) {
     const navObserver = new IntersectionObserver((entries) => {
       const visibleSection = entries
